@@ -83,7 +83,7 @@
         >
             {/* 🚲 Added Circular Image */}
             <img
-            src="/main-picture.jpg"  // <-- Put your image inside the public/ folder
+            src="/logo.jpg"  // <-- Put your image inside the public/ folder
             alt="Ghetto Riders"
             className="w-48 h-48 md:w-56 md:h-56 rounded-full object-cover mb-6 border-4 border-yellow-400 shadow-lg"
             />
@@ -197,7 +197,7 @@
             {/* Founder */}
             <div className="bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-800 hover:scale-105 transition">
             <img
-                src="/founder.jpg"
+                src="/drew.jpg"
                 alt="Founder"
                 className="w-40 h-40 rounded-full object-cover mx-auto mb-4 border-4 border-yellow-400"
             />
@@ -212,28 +212,28 @@
             {/* Co-Founder */}
             <div className="bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-800 hover:scale-105 transition">
             <img
-                src="/cofounder.jpg"
+                src="/wakin.jpg"
                 alt="Co-Founder"
                 className="w-40 h-40 rounded-full object-cover mx-auto mb-4 border-4 border-yellow-400"
             />
             <h4 className="text-xl font-bold text-yellow-400">Joaquin Cuenca</h4>
-            <p className="text-gray-300">Co-Founder / Operations Lead</p>
+            <p className="text-gray-300">Co-Founder / Developer</p>
             <p className="text-gray-400 text-sm mt-3">
-                Handles daily operations, rider coordination, and customer service.
+                Leads the development of Ghetto Riders’ technology, building reliable systems and creating seamless user experiences for both riders and customers.
             </p>
             </div>
 
             {/* Core Team Member */}
             <div className="bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-800 hover:scale-105 transition">
             <img
-                src="/member1.jpg"
+                src="/hanz.jpg"
                 alt="Team Member"
                 className="w-40 h-40 rounded-full object-cover mx-auto mb-4 border-4 border-yellow-400"
             />
             <h4 className="text-xl font-bold text-yellow-400">Hanz Noldrich Puse</h4>
-            <p className="text-gray-300">Lead Rider / Trainer</p>
+            <p className="text-gray-300">Co-Founder  / Operations Lead</p>
             <p className="text-gray-400 text-sm mt-3">
-                Ensures rider quality and safety standards for all Ghetto Riders.
+                Oversees daily rider operations, ensures smooth workflows, and trains new riders to maintain top-tier service and safety standards.
             </p>
             </div>
 
@@ -247,7 +247,5 @@
         </footer>
         </div>
     );
-
-
 
     }
