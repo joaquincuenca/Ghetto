@@ -83,7 +83,7 @@
         >
             {/* 🚲 Added Circular Image */}
             <img
-            src="/main-picture.jpg"  // <-- Put your image inside the public/ folder
+            src="/logo.jpg"  // <-- Put your image inside the public/ folder
             alt="Ghetto Riders"
             className="w-48 h-48 md:w-56 md:h-56 rounded-full object-cover mb-6 border-4 border-yellow-400 shadow-lg"
             />
@@ -177,10 +177,75 @@
             </div>
         </section>
 
+        {/* 👥 Team Section */}
+        <section
+        id="team"
+        className="bg-gray-950 py-16 px-6 md:px-12 text-center border-t border-gray-800"
+        >
+        <h3 className="text-3xl font-bold text-yellow-400 mb-4">
+            Meet the Team
+        </h3>
+
+        <p className="text-gray-300 max-w-2xl mx-auto mb-10">
+            Behind Ghetto Riders is a passionate and dedicated team focused on
+            providing fast, safe, and reliable transportation for everyone.
+        </p>
+
+        {/* Team Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-10 max-w-5xl mx-auto">
+
+            {/* Founder */}
+            <div className="bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-800 hover:scale-105 transition">
+            <img
+                src="/drew.jpg"
+                alt="Founder"
+                className="w-40 h-40 rounded-full object-cover mx-auto mb-4 border-4 border-yellow-400"
+            />
+            <h4 className="text-xl font-bold text-yellow-400">James Andrew Oliver</h4>
+            <p className="text-gray-300">Founder & CEO</p>
+            <p className="text-gray-400 text-sm mt-3">
+                Visionary behind Ghetto Riders, leading the mission to make
+                transportation accessible for everyone.
+            </p>
+            </div>
+
+            {/* Co-Founder */}
+            <div className="bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-800 hover:scale-105 transition">
+            <img
+                src="/wakin.jpg"
+                alt="Co-Founder"
+                className="w-40 h-40 rounded-full object-cover mx-auto mb-4 border-4 border-yellow-400"
+            />
+            <h4 className="text-xl font-bold text-yellow-400">Joaquin Cuenca</h4>
+            <p className="text-gray-300">Co-Founder / Developer</p>
+            <p className="text-gray-400 text-sm mt-3">
+                Leads the development of Ghetto Riders’ technology, building reliable systems and creating seamless user experiences for both riders and customers.
+            </p>
+            </div>
+
+            {/* Core Team Member */}
+            <div className="bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-800 hover:scale-105 transition">
+            <img
+                src="/hanz.jpg"
+                alt="Team Member"
+                className="w-40 h-40 rounded-full object-cover mx-auto mb-4 border-4 border-yellow-400"
+            />
+            <h4 className="text-xl font-bold text-yellow-400">Hanz Noldrich Puse</h4>
+            <p className="text-gray-300">Co-Founder  / Operations Lead</p>
+            <p className="text-gray-400 text-sm mt-3">
+                Oversees daily rider operations, ensures smooth workflows, and trains new riders to maintain top-tier service and safety standards.
+            </p>
+            </div>
+
+        </div>
+        </section>
+
+
         {/* ⚫ Footer */}
         <footer className="bg-gray-900 py-4 text-center text-gray-500 text-sm border-t border-gray-800">
             © {new Date().getFullYear()} Ghetto Riders. All rights reserved.
         </footer>
         </div>
     );
+
     }
