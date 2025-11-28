@@ -53,27 +53,31 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
     setInputValue(value);
   }, [value]);
 
-  return (
+    return (
     <div className="relative mb-3 sm:mb-4">
       <label className="text-xs sm:text-sm font-medium text-gray-300">{label}</label>
+
       <div className="relative flex gap-2">
-        <div className="relative flex-1">
+        {/* Input with icon */}
+        <div className="relative flex-1 flex items-center">
+          <span className="absolute left-2.5 sm:left-3 text-gray-400 text-lg sm:text-xl flex items-center justify-center h-full">
+            {label === "Pickup" ? <FiMapPin /> : <FiFlag />}
+          </span>
+
           <input
             type="text"
             value={inputValue}
             onChange={(e) => searchAddress(e.target.value)}
             placeholder={`Enter ${label.toLowerCase()}...`}
-            className="w-full p-2.5 sm:p-3 pl-9 sm:pl-10 rounded-xl border border-gray-700 mt-1 text-sm sm:text-base bg-gray-800 text-gray-100 placeholder-gray-400"
+            className="w-full p-2.5 sm:p-3 pl-10 sm:pl-12 rounded-xl border border-gray-700 text-sm sm:text-base bg-gray-800 text-gray-100 placeholder-gray-400"
           />
-          <span className="absolute left-2.5 sm:left-3 top-2.5 sm:top-3 text-gray-400 text-lg sm:text-xl">
-            {label === "Pickup" ? <FiMapPin /> : <FiFlag />}
-          </span>
         </div>
 
+        {/* GPS button */}
         {showCurrentLocation && (
           <button
             onClick={onCurrentLocation}
-            className="mt-1 p-2.5 sm:p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+            className="flex items-center justify-center mt-1 p-2.5 sm:p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
           >
             <img
               src="/gps.png"
@@ -81,12 +85,12 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
               className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
             />
           </button>
-
         )}
       </div>
 
+      {/* Dropdown results */}
       {open && results.length > 0 && (
-        <div className="absolute left-0 right-0 bg-gray-800 border border-gray-700 rounded-xl max-h-40 sm:max-h-48 overflow-auto z-50 shadow-lg">
+        <div className="absolute left-0 right-0 bg-gray-800 border border-gray-700 rounded-xl max-h-40 sm:max-h-48 overflow-auto z-50 shadow-lg mt-1">
           {results.map((place, i) => (
             <div
               key={i}
@@ -259,7 +263,7 @@ function BookingPage() {
     <div className="flex flex-col md:flex-row h-screen">
 
       {/* ---------------------------------------------------------
-           INSTRUCTION POPUP (New)
+        INSTRUCTION POPUP (New)
       --------------------------------------------------------- */}
       {showGuide && (
         <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
