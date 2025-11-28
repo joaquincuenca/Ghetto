@@ -17,14 +17,17 @@ const markerIcon = new L.Icon({
   iconSize: [38, 38],
 });
 
-/* Address Search Component */
 function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, onCurrentLocation }) {
+  const [inputValue, setInputValue] = useState(value); // local typing state
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
 
   async function searchAddress(q) {
-    setValue(q);
-    if (q.length < 3) return setResults([]);
+    setInputValue(q); // allow typing
+    if (q.length < 3) {
+      setResults([]);
+      return;
+    }
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
         q + ", Camarines Norte, Bicol"
@@ -37,10 +40,16 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
 
   function choose(place) {
     const latlng = { lat: parseFloat(place.lat), lng: parseFloat(place.lon) };
-    onSelect(latlng);
-    setValue(place.display_name);
+    onSelect(latlng, place.display_name); // update parent
+    setValue(place.display_name);         // update parent input
+    setInputValue(place.display_name);    // update local input
     setOpen(false);
   }
+
+  // Sync local input if parent value changes (e.g., reverse geocode)
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
 
   return (
     <div className="relative mb-3 sm:mb-4">
@@ -49,7 +58,7 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
         <div className="relative flex-1">
           <input
             type="text"
-            value={value}
+            value={inputValue}
             onChange={(e) => searchAddress(e.target.value)}
             placeholder={`Enter ${label.toLowerCase()}...`}
             className="w-full p-2.5 sm:p-3 pl-9 sm:pl-10 rounded-xl border border-gray-700 mt-1 text-sm sm:text-base bg-gray-800 text-gray-100 placeholder-gray-400"
@@ -68,6 +77,7 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
           </button>
         )}
       </div>
+
       {open && results.length > 0 && (
         <div className="absolute left-0 right-0 bg-gray-800 border border-gray-700 rounded-xl max-h-40 sm:max-h-48 overflow-auto z-50 shadow-lg">
           {results.map((place, i) => (
@@ -85,6 +95,7 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
   );
 }
 
+
 /* Click Map to Select */
 function LocationSelector({ onSelect }) {
   useMapEvents({
@@ -95,7 +106,7 @@ function LocationSelector({ onSelect }) {
   return null;
 }
 
-/* Auto Center on User */
+/* Auto Center on User or Pickup */
 function AutoCenterMap({ position }) {
   const map = useMap();
   useEffect(() => {
@@ -129,7 +140,6 @@ function BookingPage() {
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [bookingNumber, setBookingNumber] = useState("");
-  const [selectedRider, setSelectedRider] = useState(null); // Selected Rider
 
   const baseFare = 50;
   const baseKm = 3;
@@ -157,16 +167,20 @@ function BookingPage() {
     }
   }
 
-  async function handlePickupSelect(latlng) {
+  async function handlePickupSelect(latlng, placeName = null) {
     setPickup(latlng);
     if (dropoff) getAccurateDistance(latlng, dropoff);
-    await reverseGeocode(latlng, setPickupText);
+
+    if (placeName) setPickupText(placeName); // immediately set clicked address
+    else await reverseGeocode(latlng, setPickupText);
   }
 
-  async function handleDropoffSelect(latlng) {
+  async function handleDropoffSelect(latlng, placeName = null) {
     setDropoff(latlng);
     if (pickup) getAccurateDistance(pickup, latlng);
-    await reverseGeocode(latlng, setDropoffText);
+
+    if (placeName) setDropoffText(placeName); // immediately set clicked address
+    else await reverseGeocode(latlng, setDropoffText);
   }
 
   async function reverseGeocode(latlng, setTextFunc) {
@@ -195,12 +209,11 @@ function BookingPage() {
   }
 
   const resetMap = () => {
-    setPickup(userLocation);
+    setPickup(null);
     setDropoff(null);
     setDistance(null);
     setPickupText("");
     setDropoffText("");
-    setSelectedRider(null);
   };
 
   const fare =
@@ -222,10 +235,6 @@ function BookingPage() {
       alert("Select both pickup and drop-off first!");
       return;
     }
-    if (!selectedRider) {
-      alert("Please select a rider!");
-      return;
-    }
     setBookingNumber(generateBookingNumber());
     setShowReceipt(true);
   }
@@ -234,8 +243,7 @@ function BookingPage() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setUserLocation(loc);
-        setPickup(loc);
+        setUserLocation(loc); // store location for button
       },
       () => alert("Enable location services.")
     );
@@ -268,29 +276,6 @@ function BookingPage() {
                   <p className="text-xs text-gray-400 mb-1">🚩 Drop-off Location</p>
                   <p className="text-xs sm:text-sm font-medium break-words">{dropoffText || "Selected on map"}</p>
                 </div>
-
-                {/* Requested Rider with Image */}
-                {selectedRider && (
-                  <div className="bg-gray-800 p-3 rounded-lg flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-600 flex-shrink-0">
-                      <img
-                        src={
-                          selectedRider === "Drew"
-                            ? "/drew.jpg"
-                            : selectedRider === "JM"
-                            ? "/utoy.jpg"
-                            : "/hanz.jpg"
-                        }
-                        alt={selectedRider}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">🏍️ Requested Rider</p>
-                      <p className="text-sm sm:text-base font-semibold text-blue-400">{selectedRider}</p>
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex justify-between items-center py-2 border-t border-gray-700">
                   <span className="text-xs text-gray-400">Distance</span>
@@ -397,75 +382,30 @@ function BookingPage() {
             <p className="text-xl text-blue-400 font-bold mt-3">Fare: ₱{fare.toFixed(2)}</p>
           </div>
         )}
-
-        {/* Request Rider Section */}
-        {pickup && dropoff && distance && (
-          <div className="mt-4 p-5 bg-gray-800 border border-gray-700 rounded-xl shadow">
-            <h3 className="text-base sm:text-lg font-bold mb-3 text-white">Request Rider</h3>
-            <p className="text-xs sm:text-sm text-gray-400 mb-4">Select an available rider for your trip</p>
-
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { name: "Drew", img: "/drew.jpg", color: "blue" },
-                { name: "JM", img: "/utoy.jpg", color: "blue" },
-                { name: "Hanz", img: "/hanz.jpg", color: "blue" },
-                { name: "Joaquin", img: "/wakin.jpg", color: "blue" },
-                { name: "Gelo", img: "/gelo.jpg", color: "blue" },
-                { name: "Owen", img: "/nico.jpg", color: "blue" },
-              ].map((rider) => (
-                <div
-                  key={rider.name}
-                  className={`flex flex-col items-center cursor-pointer group p-1 rounded-xl transition-all ${
-                    selectedRider === rider.name ? `ring-4 ring-${rider.color}-400` : ""
-                  }`}
-                  onClick={() => setSelectedRider(rider.name)}
-                >
-                  <div
-                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-${rider.color}-500 to-${rider.color}-600 flex items-center justify-center overflow-hidden border-2 border-gray-600 group-hover:border-${rider.color}-400 transition-all shadow-lg`}
-                  >
-                    <img
-                      src={rider.img}
-                      alt={rider.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = "none";
-                        e.target.parentElement.innerHTML = `<span class="text-white text-xl font-bold">${rider.name.charAt(0)}</span>`;
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs sm:text-sm font-medium mt-2 text-gray-300">{rider.name}</p>
-                  <span className="text-xs text-green-400">● Available</span>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-xs text-gray-500 mt-4 text-center">Click a rider to request</p>
-          </div>
-        )}
       </div>
 
-      {/* Map */}
-      <div className="flex-1 relative">
-        <MapContainer
-          center={userLocation || { lat: 14.5995, lng: 120.9842 }}
-          zoom={15}
-          scrollWheelZoom={true}
-          className="w-full h-full"
-        >
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          {pickup && <Marker position={pickup} icon={markerIcon} />}
-          {dropoff && <Marker position={dropoff} icon={markerIcon} />}
-          <LocationSelector
-            onSelect={async (latlng) => {
-              if (!pickup || (pickup && dropoff)) await handlePickupSelect(latlng);
-              else await handleDropoffSelect(latlng);
-            }}
-          />
-          <AutoCenterMap position={!dropoff ? userLocation : null} />
-          <FitBoundsMap pickup={pickup} dropoff={dropoff} />
-        </MapContainer>
+        {/* Map */}
+        <div className="flex-1 relative min-h-[300px] md:min-h-0">
+          <MapContainer
+            center={userLocation || { lat: 14.5995, lng: 120.9842 }}
+            zoom={15}
+            scrollWheelZoom={true}
+            className="w-full h-full"
+          >
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            {pickup && <Marker position={pickup} icon={markerIcon} />}
+            {dropoff && <Marker position={dropoff} icon={markerIcon} />}
+            <LocationSelector
+              onSelect={async (latlng) => {
+                if (!pickup || (pickup && dropoff)) await handlePickupSelect(latlng);
+                else await handleDropoffSelect(latlng);
+              }}
+            />
+            <AutoCenterMap position={!dropoff ? userLocation : null} />
+            <FitBoundsMap pickup={pickup} dropoff={dropoff} />
+          </MapContainer>
+        </div>
       </div>
-    </div>
   );
 }
 
