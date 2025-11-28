@@ -17,13 +17,16 @@ const markerIcon = new L.Icon({
   iconSize: [38, 38],
 });
 
+/* ---------------------------------------------------------
+   Address Search Component
+--------------------------------------------------------- */
 function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, onCurrentLocation }) {
-  const [inputValue, setInputValue] = useState(value); // local typing state
+  const [inputValue, setInputValue] = useState(value);
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
 
   async function searchAddress(q) {
-    setInputValue(q); // allow typing
+    setInputValue(q);
     if (q.length < 3) {
       setResults([]);
       return;
@@ -40,13 +43,12 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
 
   function choose(place) {
     const latlng = { lat: parseFloat(place.lat), lng: parseFloat(place.lon) };
-    onSelect(latlng, place.display_name); // update parent
-    setValue(place.display_name);         // update parent input
-    setInputValue(place.display_name);    // update local input
+    onSelect(latlng, place.display_name);
+    setValue(place.display_name);
+    setInputValue(place.display_name);
     setOpen(false);
   }
 
-  // Sync local input if parent value changes (e.g., reverse geocode)
   useEffect(() => {
     setInputValue(value);
   }, [value]);
@@ -67,14 +69,19 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
             {label === "Pickup" ? <FiMapPin /> : <FiFlag />}
           </span>
         </div>
+
         {showCurrentLocation && (
           <button
             onClick={onCurrentLocation}
             className="mt-1 p-2.5 sm:p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
-            title="Use current location"
           >
-            <FiNavigation className="text-lg sm:text-xl" />
+            <img
+              src="/gps.png"
+              alt="current location"
+              className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
+            />
           </button>
+
         )}
       </div>
 
@@ -95,8 +102,9 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
   );
 }
 
-
-/* Click Map to Select */
+/* ---------------------------------------------------------
+   Map Click Selector
+--------------------------------------------------------- */
 function LocationSelector({ onSelect }) {
   useMapEvents({
     click(e) {
@@ -106,7 +114,7 @@ function LocationSelector({ onSelect }) {
   return null;
 }
 
-/* Auto Center on User or Pickup */
+/* Auto center */
 function AutoCenterMap({ position }) {
   const map = useMap();
   useEffect(() => {
@@ -115,7 +123,7 @@ function AutoCenterMap({ position }) {
   return null;
 }
 
-/* Fit Bounds for Both Markers */
+/* Fit bounds */
 function FitBoundsMap({ pickup, dropoff }) {
   const map = useMap();
   useEffect(() => {
@@ -127,7 +135,9 @@ function FitBoundsMap({ pickup, dropoff }) {
   return null;
 }
 
-/* Booking Page */
+/* ---------------------------------------------------------
+   Booking Page (Main)
+--------------------------------------------------------- */
 function BookingPage() {
   const [pickup, setPickup] = useState(null);
   const [dropoff, setDropoff] = useState(null);
@@ -140,6 +150,10 @@ function BookingPage() {
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [bookingNumber, setBookingNumber] = useState("");
+  const [showGuide, setShowGuide] = useState(true);
+
+  // NEW: Instruction Popup
+  const [showInstruction, setShowInstruction] = useState(true);
 
   const baseFare = 50;
   const baseKm = 3;
@@ -148,64 +162,59 @@ function BookingPage() {
   async function getAccurateDistance(start, end) {
     const apiKey =
       "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImZhMGNmMzAyYWZkNDRhMTNhMjlhOWVjZGM5NDAwNDFiIiwiaCI6Im11cm11cjY0In0=";
-    const url = "https://api.openrouteservice.org/v2/directions/driving-car";
     const body = { coordinates: [[start.lng, start.lat], [end.lng, end.lat]] };
 
     try {
       setLoading(true);
-      const res = await fetch(url, {
+      const res = await fetch("https://api.openrouteservice.org/v2/directions/driving-car", {
         method: "POST",
         headers: { Authorization: apiKey, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await res.json();
       setDistance(data.routes[0].summary.distance / 1000);
-    } catch (e) {
+    } catch {
       alert("Failed to get distance. Try again later.");
     } finally {
       setLoading(false);
     }
   }
 
-  async function handlePickupSelect(latlng, placeName = null) {
+  async function handlePickupSelect(latlng, name = null) {
     setPickup(latlng);
     if (dropoff) getAccurateDistance(latlng, dropoff);
 
-    if (placeName) setPickupText(placeName); // immediately set clicked address
+    if (name) setPickupText(name);
     else await reverseGeocode(latlng, setPickupText);
   }
 
-  async function handleDropoffSelect(latlng, placeName = null) {
+  async function handleDropoffSelect(latlng, name = null) {
     setDropoff(latlng);
     if (pickup) getAccurateDistance(pickup, latlng);
 
-    if (placeName) setDropoffText(placeName); // immediately set clicked address
+    if (name) setDropoffText(name);
     else await reverseGeocode(latlng, setDropoffText);
   }
 
-  async function reverseGeocode(latlng, setTextFunc) {
+  async function reverseGeocode(latlng, setter) {
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`
       );
       const data = await res.json();
-      if (data.display_name) setTextFunc(data.display_name);
-    } catch (e) {
-      console.error("Failed to get address:", e);
-    }
+      if (data.display_name) setter(data.display_name);
+    } catch {}
   }
 
   async function useCurrentLocation() {
-    if (userLocation) await handlePickupSelect(userLocation);
-    else
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setUserLocation(loc);
-          await handlePickupSelect(loc);
-        },
-        () => alert("Enable location services.")
-      );
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(loc);
+        await handlePickupSelect(loc);
+      },
+      () => alert("Enable location services.")
+    );
   }
 
   const resetMap = () => {
@@ -231,27 +240,60 @@ function BookingPage() {
   }
 
   function handleBookNow() {
-    if (!pickup || !dropoff || !distance) {
-      alert("Select both pickup and drop-off first!");
-      return;
-    }
+    if (!pickup || !dropoff || !distance) return alert("Select pickup & drop-off first!");
     setBookingNumber(generateBookingNumber());
     setShowReceipt(true);
   }
 
+  /* get location once */
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setUserLocation(loc); // store location for button
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
-      () => alert("Enable location services.")
+      () => {}
     );
   }, []);
 
   return (
     <div className="flex flex-col md:flex-row h-screen">
-      {/* Receipt Modal */}
+
+      {/* ---------------------------------------------------------
+           INSTRUCTION POPUP (New)
+      --------------------------------------------------------- */}
+      {showGuide && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+          <div className="bg-gray-900/80 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 text-gray-100 border border-gray-700">
+
+            <h2 className="text-xl sm:text-2xl font-bold text-center mb-4">
+              How to Book a Ride
+            </h2>
+
+            <div className="space-y-3 text-sm sm:text-base">
+              <p>✔ You can <span className="text-blue-400 font-semibold">search for Pickup</span> or <span className="text-blue-400 font-semibold">Drop-off</span> using the search bar.</p>
+
+              <p>✔ You can also <span className="text-yellow-400 font-semibold">manually pin</span> a location by tapping on the map.</p>
+
+              <p>✔ After choosing both locations, the system automatically calculates your fare.</p>
+
+              <p>✔ Press <span className="text-green-400 font-semibold">Book Now</span> to confirm your ride.</p>
+            </div>
+
+            <button
+              onClick={() => setShowGuide(false)}
+              className="w-full bg-blue-600 hover:bg-blue-700 py-3 mt-6 rounded-xl font-semibold"
+            >
+              Got it!
+            </button>
+
+          </div>
+        </div>
+      )}
+
+
+      {/* ---------------------------------------------------------
+      RECEIPT POPUP
+      --------------------------------------------------------- */}
       {showReceipt && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] p-4">
           <div className="bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto text-gray-100">
@@ -269,22 +311,40 @@ function BookingPage() {
 
                 <div className="bg-gray-800 p-3 rounded-lg">
                   <p className="text-xs text-gray-400 mb-1">📍 Pickup Location</p>
-                  <p className="text-xs sm:text-sm font-medium break-words">{pickupText || "Selected on map"}</p>
+                  <p className="text-xs sm:text-sm font-medium break-words">{pickupText}</p>
                 </div>
 
                 <div className="bg-gray-800 p-3 rounded-lg">
                   <p className="text-xs text-gray-400 mb-1">🚩 Drop-off Location</p>
-                  <p className="text-xs sm:text-sm font-medium break-words">{dropoffText || "Selected on map"}</p>
+                  <p className="text-xs sm:text-sm font-medium break-words">{dropoffText}</p>
                 </div>
 
                 <div className="flex justify-between items-center py-2 border-t border-gray-700">
                   <span className="text-xs text-gray-400">Distance</span>
-                  <span className="text-sm sm:text-base font-semibold">{distance?.toFixed(2) || "0.00"} km</span>
+                  <span className="text-sm sm:text-base font-semibold">{distance?.toFixed(2)} km</span>
                 </div>
 
-                <div className="flex justify-between items-center py-3 bg-blue-600 text-white rounded-lg px-4 mt-2">
-                  <span className="text-base sm:text-lg font-bold">Total Fare</span>
-                  <span className="text-xl sm:text-2xl font-bold">₱{fare.toFixed(2)}</span>
+                <div className="bg-gray-800 p-3 rounded-lg space-y-2">
+                  <p className="text-xs text-gray-400 mb-1">💰 Fare Breakdown</p>
+
+                  <div className="flex justify-between text-sm">
+                    <span>Base Fare (First {baseKm} km)</span>
+                    <span>₱{baseFare.toFixed(2)}</span>
+                  </div>
+
+                  {distance > baseKm && (
+                    <div className="flex justify-between text-sm">
+                      <span>Extra Distance ({(distance - baseKm).toFixed(2)} km × ₱{extraRate})</span>
+                      <span>₱{((distance - baseKm) * extraRate).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  <div className="border-t border-gray-700 my-2"></div>
+
+                  <div className="flex justify-between items-center py-2 text-white font-bold text-lg">
+                    <span>Total Fare</span>
+                    <span>₱{fare.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -301,10 +361,9 @@ function BookingPage() {
               >
                 Close
               </button>
+
               <button
-                onClick={() =>
-                  window.open("https://www.facebook.com/profile.php?id=61582462506784", "_blank")
-                }
+                onClick={() => window.open("https://www.facebook.com/profile.php?id=61582462506784", "_blank")}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-semibold"
               >
                 Book on FB
@@ -314,7 +373,9 @@ function BookingPage() {
         </div>
       )}
 
-      {/* Sidebar */}
+      {/* ---------------------------------------------------------
+        SIDEBAR
+      --------------------------------------------------------- */}
       <div className="w-full md:w-[380px] bg-gray-900 text-gray-100 p-4 sm:p-6 shadow-xl overflow-y-auto max-h-[50vh] md:max-h-none">
         <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-white">Book Your Ride</h2>
 
@@ -331,12 +392,12 @@ function BookingPage() {
           <button
             className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full shadow"
             onClick={() => {
-              const tempLoc = pickup;
-              const tempText = pickupText;
+              const tLoc = pickup;
+              const tText = pickupText;
               setPickup(dropoff);
               setPickupText(dropoffText);
-              setDropoff(tempLoc);
-              setDropoffText(tempText);
+              setDropoff(tLoc);
+              setDropoffText(tText);
             }}
           >
             <AiOutlineSwap className="text-xl text-gray-200" />
@@ -348,7 +409,6 @@ function BookingPage() {
           value={dropoffText}
           setValue={setDropoffText}
           onSelect={handleDropoffSelect}
-          showCurrentLocation={false}
         />
 
         <button
@@ -368,7 +428,7 @@ function BookingPage() {
           </button>
           
           <button
-            onClick={() => window.location.href = "/"} // redirect to homepage
+            onClick={() => (window.location.href = "/")}
             className="flex-1 bg-blue-600 hover:bg-yellow-700 text-white py-3 rounded-xl font-semibold shadow-md transition-colors"
           >
             Back to Homepage
@@ -384,28 +444,33 @@ function BookingPage() {
         )}
       </div>
 
-        {/* Map */}
-        <div className="flex-1 relative min-h-[300px] md:min-h-0">
-          <MapContainer
-            center={userLocation || { lat: 14.5995, lng: 120.9842 }}
-            zoom={15}
-            scrollWheelZoom={true}
-            className="w-full h-full"
-          >
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            {pickup && <Marker position={pickup} icon={markerIcon} />}
-            {dropoff && <Marker position={dropoff} icon={markerIcon} />}
-            <LocationSelector
-              onSelect={async (latlng) => {
-                if (!pickup || (pickup && dropoff)) await handlePickupSelect(latlng);
-                else await handleDropoffSelect(latlng);
-              }}
-            />
-            <AutoCenterMap position={!dropoff ? userLocation : null} />
-            <FitBoundsMap pickup={pickup} dropoff={dropoff} />
-          </MapContainer>
-        </div>
+      {/* ---------------------------------------------------------
+      MAP
+      --------------------------------------------------------- */}
+      <div className="flex-1 relative min-h-[300px] md:min-h-0">
+        <MapContainer
+          center={userLocation || { lat: 14.5995, lng: 120.9842 }}
+          zoom={15}
+          scrollWheelZoom={true}
+          className="w-full h-full"
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+          {pickup && <Marker position={pickup} icon={markerIcon} />}
+          {dropoff && <Marker position={dropoff} icon={markerIcon} />}
+
+          <LocationSelector
+            onSelect={async (latlng) => {
+              if (!pickup || (pickup && dropoff)) await handlePickupSelect(latlng);
+              else await handleDropoffSelect(latlng);
+            }}
+          />
+
+          <AutoCenterMap position={!dropoff ? userLocation : null} />
+          <FitBoundsMap pickup={pickup} dropoff={dropoff} />
+        </MapContainer>
       </div>
+    </div>
   );
 }
 
