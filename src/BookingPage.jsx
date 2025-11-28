@@ -265,9 +265,9 @@ function BookingPage() {
     );
   }, []);
 
-   // Show terms once after first visit
+  // Show terms once after first visit
   useEffect(() => {
-    const termsAccepted = localStorage.getItem("termsAccepted");
+    const termsAccepted = localStorage.getItem("acceptedTerms");
     if (!termsAccepted) {
       setShowTerms(true);
     } else {
@@ -278,8 +278,9 @@ function BookingPage() {
   const handleAcceptTerms = () => {
     setAcceptedTerms(true);
     setShowTerms(false);
-    localStorage.setItem("termsAccepted", "true");
+    localStorage.setItem("acceptedTerms", "true"); // Save in localStorage
   };
+
 
   function handleBookNow() {
     if (!acceptedTerms) {
