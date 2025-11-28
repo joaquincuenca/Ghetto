@@ -197,7 +197,7 @@
             {/* Founder */}
             <div className="bg-gray-900 rounded-2xl p-6 shadow-lg border border-gray-800 hover:scale-105 transition">
             <img
-                src="/drew.jpg"
+                src="/dreww.jpg"
                 alt="Founder"
                 className="w-40 h-40 rounded-full object-cover mx-auto mb-4 border-4 border-yellow-400"
             />
