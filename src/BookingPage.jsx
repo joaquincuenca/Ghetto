@@ -53,7 +53,7 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
     setInputValue(value);
   }, [value]);
 
-    return (
+  return (
     <div className="relative mb-3 sm:mb-4">
       <label className="text-xs sm:text-sm font-medium text-gray-300">{label}</label>
 
@@ -159,6 +159,9 @@ function BookingPage() {
   // NEW: Instruction Popup
   const [showInstruction, setShowInstruction] = useState(true);
 
+  // NEW: Error message state
+  const [errorMessage, setErrorMessage] = useState(null);
+
   const baseFare = 50;
   const baseKm = 3;
   const extraRate = 15;
@@ -178,7 +181,7 @@ function BookingPage() {
       const data = await res.json();
       setDistance(data.routes[0].summary.distance / 1000);
     } catch {
-      alert("Failed to get distance. Try again later.");
+      setErrorMessage("Failed to get distance. Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -217,7 +220,7 @@ function BookingPage() {
         setUserLocation(loc);
         await handlePickupSelect(loc);
       },
-      () => alert("Enable location services.")
+      () => setErrorMessage("❌ Enable location services.")
     );
   }
 
@@ -244,7 +247,7 @@ function BookingPage() {
   }
 
   function handleBookNow() {
-    if (!pickup || !dropoff || !distance) return alert("Select pickup & drop-off first!");
+    if (!pickup || !dropoff || !distance) return setErrorMessage("❌ Select pickup & drop-off first!");
     setBookingNumber(generateBookingNumber());
     setShowReceipt(true);
   }
@@ -263,6 +266,25 @@ function BookingPage() {
     <div className="flex flex-col md:flex-row h-screen">
 
       {/* ---------------------------------------------------------
+        ERROR POPUP
+      --------------------------------------------------------- */}
+      {errorMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-gray-900 text-gray-100 rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 text-center border border-gray-700">
+            <h1 className="text-6xl sm:text-7xl font-bold text-red-600 mb-4">404</h1>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2">Oops!</h2>
+            <p className="text-sm sm:text-base text-gray-300 mb-6">{errorMessage}</p>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-xl font-semibold"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------
         INSTRUCTION POPUP (New)
       --------------------------------------------------------- */}
       {showGuide && (
@@ -275,11 +297,8 @@ function BookingPage() {
 
             <div className="space-y-3 text-sm sm:text-base">
               <p>✔ You can <span className="text-blue-400 font-semibold">search for Pickup</span> or <span className="text-blue-400 font-semibold">Drop-off</span> using the search bar.</p>
-
               <p>✔ You can also <span className="text-yellow-400 font-semibold">manually pin</span> a location by tapping on the map.</p>
-
               <p>✔ After choosing both locations, the system automatically calculates your fare.</p>
-
               <p>✔ Press <span className="text-green-400 font-semibold">Book Now</span> to confirm your ride.</p>
             </div>
 
@@ -293,7 +312,6 @@ function BookingPage() {
           </div>
         </div>
       )}
-
 
       {/* ---------------------------------------------------------
       RECEIPT POPUP
