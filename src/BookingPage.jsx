@@ -166,6 +166,7 @@ function BookingPage() {
   const [dropoff, setDropoff] = useState(null);
   const [distance, setDistance] = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
+  const [alternativeRoutes, setAlternativeRoutes] = useState([]);
   const [duration, setDuration] = useState(null);
 
   const [pickupText, setPickupText] = useState("");
@@ -184,33 +185,50 @@ function BookingPage() {
   const baseKm = 3;
   const extraRate = 15;
 
-  // Get route with directions using OpenRouteService
+  // Get route with directions using OSRM - now with multiple route alternatives
   async function getRouteWithDirections(start, end) {
-    const apiKey = "5b3ce3597851110001cf62482a0cf302afd44a13a29a9ecdc940041b";
-    
     try {
       setLoading(true);
+      setRouteCoordinates([]); // Clear old route
+      setAlternativeRoutes([]); // Clear old alternatives
+      
+      // OSRM API with alternatives=true to get multiple routes
       const res = await fetch(
-        `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`
+        `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&alternatives=true&steps=true`
       );
       
       const data = await res.json();
       
-      if (data.features && data.features[0]) {
-        const route = data.features[0];
-        const coords = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-        const distanceKm = route.properties.segments[0].distance / 1000;
-        const durationMin = route.properties.segments[0].duration / 60;
+      if (data.code === "Ok" && data.routes && data.routes.length > 0) {
+        // Primary route (fastest)
+        const primaryRoute = data.routes[0];
+        const primaryCoords = primaryRoute.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        const distanceKm = primaryRoute.distance / 1000;
+        const durationMin = primaryRoute.duration / 60;
         
-        setRouteCoordinates(coords);
+        setRouteCoordinates(primaryCoords);
         setDistance(distanceKm);
         setDuration(durationMin);
+        
+        // Alternative routes (if available)
+        const alternatives = [];
+        for (let i = 1; i < Math.min(data.routes.length, 3); i++) {
+          const altRoute = data.routes[i];
+          alternatives.push({
+            coordinates: altRoute.geometry.coordinates.map(coord => [coord[1], coord[0]]),
+            distance: altRoute.distance / 1000,
+            duration: altRoute.duration / 60
+          });
+        }
+        setAlternativeRoutes(alternatives);
+      } else {
+        throw new Error("No route found");
       }
     } catch (error) {
-      // Silently fail - just log to console
       console.error("Route calculation failed:", error);
+      
       // Fallback: calculate straight-line distance
-      const R = 6371; // Earth's radius in km
+      const R = 6371;
       const dLat = (end.lat - start.lat) * Math.PI / 180;
       const dLng = (end.lng - start.lng) * Math.PI / 180;
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -218,8 +236,11 @@ function BookingPage() {
                 Math.sin(dLng/2) * Math.sin(dLng/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       const distance = R * c;
+      
       setDistance(distance);
       setDuration(null);
+      setRouteCoordinates([]);
+      setAlternativeRoutes([]);
     } finally {
       setLoading(false);
     }
@@ -244,54 +265,36 @@ function BookingPage() {
   }
 
   async function handlePickupSelect(latlng, name = null) {
-  if (!isWithinCamarinesNorte(latlng)) {
-    setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
-    setPickup(null);           // Clear the pickup marker
-    setPickupText("");         // Clear the input
-    if (routeCoordinates.length > 0) setRouteCoordinates([]); // Clear route if any
-    return;
+    if (!isWithinCamarinesNorte(latlng)) {
+      setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
+      setPickup(null);           // Clear the pickup marker
+      setPickupText("");         // Clear the input
+      if (routeCoordinates.length > 0) setRouteCoordinates([]); // Clear route if any
+      return;
+    }
+    
+    setPickup(latlng);
+    if (dropoff) getRouteWithDirections(latlng, dropoff);
+    
+    if (name) setPickupText(name);
+    else await reverseGeocode(latlng, setPickupText);
   }
-  
-  setPickup(latlng);
-  if (dropoff) getRouteWithDirections(latlng, dropoff);
-  
-  if (name) setPickupText(name);
-  else await reverseGeocode(latlng, setPickupText);
-}
 
-async function handlePickupSelect(latlng, name = null) {
-  if (!isWithinCamarinesNorte(latlng)) {
-    setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
-    setPickup(null);          // Clear the pickup marker
-    setPickupText("");        // Clear the pickup input field
-    if (routeCoordinates.length > 0) setRouteCoordinates([]); // Clear route if any
-    return;
+  async function handleDropoffSelect(latlng, name = null) {
+    if (!isWithinCamarinesNorte(latlng)) {
+      setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
+      setDropoff(null);         // Clear the dropoff marker
+      setDropoffText("");       // Clear the dropoff input field
+      if (routeCoordinates.length > 0) setRouteCoordinates([]); // Clear route if any
+      return;
+    }
+    
+    setDropoff(latlng);
+    if (pickup) getRouteWithDirections(pickup, latlng);
+    
+    if (name) setDropoffText(name);
+    else await reverseGeocode(latlng, setDropoffText);
   }
-  
-  setPickup(latlng);
-  if (dropoff) getRouteWithDirections(latlng, dropoff);
-  
-  if (name) setPickupText(name);
-  else await reverseGeocode(latlng, setPickupText);
-}
-
-async function handleDropoffSelect(latlng, name = null) {
-  if (!isWithinCamarinesNorte(latlng)) {
-    setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
-    setDropoff(null);         // Clear the dropoff marker
-    setDropoffText("");       // Clear the dropoff input field
-    if (routeCoordinates.length > 0) setRouteCoordinates([]); // Clear route if any
-    return;
-  }
-  
-  setDropoff(latlng);
-  if (pickup) getRouteWithDirections(pickup, latlng);
-  
-  if (name) setDropoffText(name);
-  else await reverseGeocode(latlng, setDropoffText);
-}
-
-
 
   async function reverseGeocode(latlng, setter) {
     try {
@@ -320,6 +323,7 @@ async function handleDropoffSelect(latlng, name = null) {
     setDistance(null);
     setDuration(null);
     setRouteCoordinates([]);
+    setAlternativeRoutes([]);
     setPickupText("");
     setDropoffText("");
   };
@@ -632,13 +636,24 @@ async function handleDropoffSelect(latlng, name = null) {
           {pickup && <Marker position={pickup} icon={markerIcon} />}
           {dropoff && <Marker position={dropoff} icon={markerIcon} />}
           
-          {/* Route Line */}
+          {/* Alternative Routes (slower options) - Gray lines */}
+          {alternativeRoutes.map((altRoute, index) => (
+            <Polyline
+              key={`alt-${index}`}
+              positions={altRoute.coordinates}
+              color="#9ca3af"
+              weight={5}
+              opacity={0.5}
+            />
+          ))}
+          
+          {/* Primary Route (fastest) - Blue line on top */}
           {routeCoordinates.length > 0 && (
             <Polyline
               positions={routeCoordinates}
               color="#3b82f6"
-              weight={5}
-              opacity={0.7}
+              weight={6}
+              opacity={0.9}
             />
           )}
 
@@ -658,4 +673,3 @@ async function handleDropoffSelect(latlng, name = null) {
 }
 
 export default BookingPage;
-
