@@ -28,24 +28,24 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
 
   async function searchAddress(q) {
     setInputValue(q);
+    setValue(q); // sync with parent
     if (q.length < 2) {
       setResults([]);
       return;
     }
 
-    // Using Photon API (OpenStreetMap-based) for better autocomplete
     const res = await fetch(
       `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=10&lat=14.1218&lon=122.9566`
     );
     const data = await res.json();
-    
+
     const formatted = data.features.map(f => ({
       lat: f.geometry.coordinates[1],
       lon: f.geometry.coordinates[0],
       display_name: f.properties.name + (f.properties.city ? `, ${f.properties.city}` : '') + (f.properties.state ? `, ${f.properties.state}` : ''),
       type: f.properties.type || 'place'
     }));
-    
+
     setResults(formatted);
     setOpen(true);
   }
@@ -56,6 +56,12 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
     setValue(place.display_name);
     setInputValue(place.display_name);
     setOpen(false);
+  }
+
+  function clearInput() {
+    setInputValue("");
+    setValue("");
+    setResults([]);
   }
 
   useEffect(() => {
@@ -80,6 +86,16 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
             placeholder={`Enter ${label.toLowerCase()}...`}
             className="w-full p-2.5 sm:p-3 pl-10 sm:pl-12 rounded-xl border border-gray-700 text-sm sm:text-base bg-gray-800 text-gray-100 placeholder-gray-400"
           />
+
+          {/* Clear Button */}
+          {inputValue && (
+            <button
+              onClick={clearInput}
+              className="absolute right-2.5 sm:right-3 text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 w-6 h-6 flex items-center justify-center rounded-full transition"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         {showCurrentLocation && (
@@ -109,6 +125,7 @@ function AddressSearch({ label, value, setValue, onSelect, showCurrentLocation, 
     </div>
   );
 }
+
 
 /* ---------------------------------------------------------
    Map Components
@@ -227,30 +244,54 @@ function BookingPage() {
   }
 
   async function handlePickupSelect(latlng, name = null) {
-    if (!isWithinCamarinesNorte(latlng)) {
-      setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
-      return;
-    }
-    
-    setPickup(latlng);
-    if (dropoff) getRouteWithDirections(latlng, dropoff);
-    
-    if (name) setPickupText(name);
-    else await reverseGeocode(latlng, setPickupText);
+  if (!isWithinCamarinesNorte(latlng)) {
+    setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
+    setPickup(null);           // Clear the pickup marker
+    setPickupText("");         // Clear the input
+    if (routeCoordinates.length > 0) setRouteCoordinates([]); // Clear route if any
+    return;
   }
+  
+  setPickup(latlng);
+  if (dropoff) getRouteWithDirections(latlng, dropoff);
+  
+  if (name) setPickupText(name);
+  else await reverseGeocode(latlng, setPickupText);
+}
 
-  async function handleDropoffSelect(latlng, name = null) {
-    if (!isWithinCamarinesNorte(latlng)) {
-      setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
-      return;
-    }
-    
-    setDropoff(latlng);
-    if (pickup) getRouteWithDirections(pickup, latlng);
-    
-    if (name) setDropoffText(name);
-    else await reverseGeocode(latlng, setDropoffText);
+async function handlePickupSelect(latlng, name = null) {
+  if (!isWithinCamarinesNorte(latlng)) {
+    setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
+    setPickup(null);          // Clear the pickup marker
+    setPickupText("");        // Clear the pickup input field
+    if (routeCoordinates.length > 0) setRouteCoordinates([]); // Clear route if any
+    return;
   }
+  
+  setPickup(latlng);
+  if (dropoff) getRouteWithDirections(latlng, dropoff);
+  
+  if (name) setPickupText(name);
+  else await reverseGeocode(latlng, setPickupText);
+}
+
+async function handleDropoffSelect(latlng, name = null) {
+  if (!isWithinCamarinesNorte(latlng)) {
+    setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
+    setDropoff(null);         // Clear the dropoff marker
+    setDropoffText("");       // Clear the dropoff input field
+    if (routeCoordinates.length > 0) setRouteCoordinates([]); // Clear route if any
+    return;
+  }
+  
+  setDropoff(latlng);
+  if (pickup) getRouteWithDirections(pickup, latlng);
+  
+  if (name) setDropoffText(name);
+  else await reverseGeocode(latlng, setDropoffText);
+}
+
+
 
   async function reverseGeocode(latlng, setter) {
     try {
@@ -378,11 +419,16 @@ function BookingPage() {
               <p className="text-xs text-gray-400 mt-2">Covered municipalities: Daet, Basud, Mercedes, Vinzons, Talisay, San Lorenzo Ruiz, Paracale, Jose Panganiban, and more.</p>
             </div>
             <button
-              onClick={() => setErrorMessage(null)}
+              onClick={() => {
+                setErrorMessage(null);
+                setPickupText("");
+                setDropoffText("");
+              }}
               className="w-full bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-xl font-semibold"
             >
               Got it
             </button>
+
           </div>
         </div>
       )}
@@ -612,3 +658,4 @@ function BookingPage() {
 }
 
 export default BookingPage;
+
