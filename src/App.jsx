@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import LandingPage from "./LandingPage";
-import BookingPage from "./BookingPage"; // rename your map component to BookingPage.jsx
+import LandingPage from "./views/pages/LandingPage";
+import BookingPage from "./views/pages/BookingPage";
 
 function App() {
   return (
