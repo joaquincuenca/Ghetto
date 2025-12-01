@@ -6,6 +6,7 @@ import {
   Polyline,
   useMapEvents,
   useMap,
+  Popup,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -156,6 +157,56 @@ function FitBoundsMap({ pickup, dropoff }) {
     }
   }, [pickup, dropoff, map]);
   return null;
+}
+
+// Component to add route labels
+function RouteLabels({ routeCoordinates, alternativeRoutes }) {
+  const map = useMap();
+  
+  if (!routeCoordinates.length && !alternativeRoutes.length) return null;
+
+  // Function to calculate midpoint of a route
+  const getRouteMidpoint = (coordinates) => {
+    if (coordinates.length === 0) return null;
+    const middleIndex = Math.floor(coordinates.length / 2);
+    return coordinates[middleIndex];
+  };
+
+  return (
+    <>
+      {/* Primary Route Label */}
+      {routeCoordinates.length > 0 && (
+        <Popup
+          position={getRouteMidpoint(routeCoordinates)}
+          permanent
+          className="route-label-popup"
+        >
+          <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold whitespace-nowrap">
+            🚀 Fastest Route
+          </div>
+        </Popup>
+      )}
+
+      {/* Alternative Routes Labels */}
+      {alternativeRoutes.map((altRoute, index) => {
+        const midpoint = getRouteMidpoint(altRoute.coordinates);
+        if (!midpoint) return null;
+        
+        return (
+          <Popup
+            key={`alt-label-${index}`}
+            position={midpoint}
+            permanent
+            className="route-label-popup"
+          >
+            <div className="bg-gray-600 text-white px-2 py-1 rounded text-xs font-bold whitespace-nowrap">
+              ⏱️ Slower Route {index + 1}
+            </div>
+          </Popup>
+        );
+      })}
+    </>
+  );
 }
 
 /* ---------------------------------------------------------
@@ -641,9 +692,10 @@ function BookingPage() {
             <Polyline
               key={`alt-${index}`}
               positions={altRoute.coordinates}
-              color="#9ca3af"
-              weight={5}
-              opacity={0.5}
+              color="#6b7280" // Gray color for alternative routes
+              weight={4}
+              opacity={0.6}
+              dashArray="5, 10" // Optional: make it dashed to distinguish more
             />
           ))}
           
@@ -651,11 +703,17 @@ function BookingPage() {
           {routeCoordinates.length > 0 && (
             <Polyline
               positions={routeCoordinates}
-              color="#3b82f6"
+              color="#3b82f6" // Blue color for primary route
               weight={6}
               opacity={0.9}
             />
           )}
+
+          {/* Route Labels */}
+          <RouteLabels 
+            routeCoordinates={routeCoordinates} 
+            alternativeRoutes={alternativeRoutes} 
+          />
 
           <LocationSelector
             onSelect={async (latlng) => {
