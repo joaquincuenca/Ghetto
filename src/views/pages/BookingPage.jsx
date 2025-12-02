@@ -168,30 +168,38 @@ export default function BookingPage() {
             <div className="w-full md:w-[380px] bg-gray-900 text-gray-100 p-4 sm:p-6 shadow-xl overflow-y-auto max-h-[50vh] md:max-h-none">
                 <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-white">Book Your Ride</h2>
 
-                <AddressSearch
-                    label="Pickup"
-                    value={pickupText}
-                    setValue={setPickupText}
-                    onSelect={handlePickupSelect}
-                    showCurrentLocation={true}
-                    onCurrentLocation={useCurrentLocation}
-                />
+            <AddressSearch
+                label="Pickup"
+                value={pickupText}
+                setValue={setPickupText}
+                onSelect={handlePickupSelect}
+                onClear={() => {
+                    setPickupText("");
+                    handlePickupSelect(null);
+                }}
+                showCurrentLocation={true}
+                onCurrentLocation={useCurrentLocation}
+            />
 
-                <div className="flex justify-center mb-4">
-                    <button
-                        className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full shadow"
-                        onClick={swapLocations}
-                    >
-                        <AiOutlineSwap className="text-xl text-gray-200" />
-                    </button>
-                </div>
+            <div className="flex justify-center mb-4">
+                <button
+                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full shadow"
+                    onClick={swapLocations}
+                >
+                    <AiOutlineSwap className="text-xl text-gray-200" />
+                </button>
+            </div>
 
-                <AddressSearch
-                    label="Drop-off"
-                    value={dropoffText}
-                    setValue={setDropoffText}
-                    onSelect={handleDropoffSelect}
-                />
+            <AddressSearch
+                label="Drop-off"
+                value={dropoffText}
+                setValue={setDropoffText}
+                onSelect={handleDropoffSelect}
+                onClear={() => {
+                    setDropoffText("");
+                    handleDropoffSelect(null);
+                }}
+            />
 
                 {loading && (
                     <div className="text-center text-blue-400 text-sm mb-3">

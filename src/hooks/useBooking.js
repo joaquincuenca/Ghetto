@@ -16,6 +16,17 @@ export const useBooking = () => {
     const viewModel = new BookingViewModel();
 
     const handlePickupSelect = useCallback(async (latlng, name = null) => {
+        // Handle clearing pickup
+        if (!latlng || latlng === null) {
+            setPickup(null);
+            setPickupText("");
+            setDistance(null);
+            setDuration(null);
+            setRouteCoordinates([]);
+            setAlternativeRoutes([]);
+            return;
+        }
+
         try {
             setLoading(true);
             const { location, routeData } = await viewModel.handleLocationSelect(
@@ -26,7 +37,6 @@ export const useBooking = () => {
                 dropoff
             );
 
-            // ✅ FIXED: Store the full Location object, not just lat/lng
             setPickup(location);
             setPickupText(location.displayName);
 
@@ -35,6 +45,12 @@ export const useBooking = () => {
                 setDistance(routeData.primary.distance);
                 setDuration(routeData.primary.duration);
                 setAlternativeRoutes(routeData.alternatives);
+            } else {
+                // No dropoff yet, clear route
+                setRouteCoordinates([]);
+                setDistance(null);
+                setDuration(null);
+                setAlternativeRoutes([]);
             }
         } catch (error) {
             if (error.message === "OUT_OF_RANGE") {
@@ -49,6 +65,17 @@ export const useBooking = () => {
     }, [pickup, dropoff]);
 
     const handleDropoffSelect = useCallback(async (latlng, name = null) => {
+        // Handle clearing dropoff
+        if (!latlng || latlng === null) {
+            setDropoff(null);
+            setDropoffText("");
+            setDistance(null);
+            setDuration(null);
+            setRouteCoordinates([]);
+            setAlternativeRoutes([]);
+            return;
+        }
+
         try {
             setLoading(true);
             const { location, routeData } = await viewModel.handleLocationSelect(
@@ -59,7 +86,6 @@ export const useBooking = () => {
                 dropoff
             );
 
-            // ✅ FIXED: Store the full Location object, not just lat/lng
             setDropoff(location);
             setDropoffText(location.displayName);
 
