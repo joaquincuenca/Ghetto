@@ -600,89 +600,146 @@ export default function AdminDashboard() {
                         <div className="flex items-center gap-3 w-full md:w-auto">
                             {/* Notification Bell */}
                             <div className="relative" ref={dropdownRef}>
-                                <button
-                                    onClick={() => {
-                                        setShowNotifications(!showNotifications);
-                                        setShowNotificationSettings(false);
-                                    }}
-                                    className="relative p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-                                >
-                                    <span className="text-lg md:text-xl">🔔</span>
-                                    {unreadCount > 0 && (
-                                        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                                            {unreadCount > 9 ? '9+' : unreadCount}
-                                        </span>
-                                    )}
-                                </button>
+                            <button
+                                onClick={() => {
+                                    setShowNotifications(!showNotifications);
+                                    setShowNotificationSettings(false);
+                                }}
+                                className="relative p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors touch-manipulation"
+                                aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
+                            >
+                                <span className="text-xl">🔔</span>
+                                {unreadCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full h-6 w-6 flex items-center justify-center min-w-[1.5rem]">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </button>
                                 
                                 {/* Notifications Dropdown */}
                                 {showNotifications && (
-                                    <div className="absolute right-0 mt-2 w-72 md:w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
-                                        <div className="p-3 md:p-4 border-b border-gray-700 flex justify-between items-center">
-                                            <h3 className="font-semibold text-sm md:text-base">Notifications</h3>
-                                            <div className="flex gap-2">
-                                                {unreadCount > 0 && (
+                                    <div className="fixed md:absolute inset-0 md:inset-auto md:right-0 md:mt-2 md:top-full z-50">
+                                        <div className="md:max-h-[80vh] h-screen md:h-auto md:w-80 w-full bg-gray-800 border border-gray-700 md:rounded-lg shadow-xl flex flex-col">
+                                            {/* Notification header */}
+                                            <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 sticky top-0">
+                                                <h3 className="font-semibold text-base">Notifications</h3>
+                                                <div className="flex gap-3">
+                                                    {unreadCount > 0 && (
+                                                        <button
+                                                            onClick={markAllAsRead}
+                                                            className="text-blue-400 hover:text-blue-300 px-2 py-1"
+                                                        >
+                                                            Mark all read
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={markAllAsRead}
-                                                        className="text-xs text-blue-400 hover:text-blue-300"
+                                                        onClick={clearNotifications}
+                                                        className="text-red-400 hover:text-red-300 px-2 py-1"
                                                     >
-                                                        Mark all read
+                                                        Clear all
                                                     </button>
-                                                )}
-                                                <button
-                                                    onClick={clearNotifications}
-                                                    className="text-xs text-red-400 hover:text-red-300"
-                                                >
-                                                    Clear all
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="max-h-64 md:max-h-96 overflow-y-auto">
-                                            {notifications.length === 0 ? (
-                                                <div className="p-4 text-center text-gray-400 text-sm">
-                                                    No notifications
-                                                </div>
-                                            ) : (
-                                                notifications.map(notification => (
-                                                    <div
-                                                        key={notification.id}
-                                                        className={`p-3 md:p-4 border-b border-gray-700 hover:bg-gray-750 cursor-pointer ${!notification.read ? 'bg-blue-900/10' : ''}`}
-                                                        onClick={() => {
-                                                            if (notification.details) {
-                                                                // Find the booking
-                                                                const booking = bookings.find(b => b.id === notification.bookingId);
-                                                                if (booking) {
-                                                                    setSelectedBooking(booking);
-                                                                    setShowBookingDetails(true);
-                                                                }
-                                                            }
-                                                            setShowNotifications(false);
-                                                        }}
+                                                    <button
+                                                        onClick={() => setShowNotifications(false)}
+                                                        className="md:hidden text-gray-400 hover:text-white"
                                                     >
-                                                        <div className="flex justify-between items-start">
-                                                            <div className="flex-1 min-w-0">
-                                                                <h4 className="font-semibold text-xs md:text-sm truncate">{notification.title}</h4>
-                                                                <p className="text-xs text-gray-400 mt-1 truncate">{notification.message}</p>
-                                                                {notification.details && (
-                                                                    <div className="mt-2 text-xs text-gray-500">
-                                                                        <p>Customer: {notification.details.customerName}</p>
-                                                                        <p>Contact: {notification.details.phoneNumber}</p>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            {!notification.read && (
-                                                                <span className="h-2 w-2 bg-blue-500 rounded-full flex-shrink-0 ml-2 mt-1"></span>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-xs text-gray-500 mt-2">
-                                                            {new Date(notification.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </p>
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Scrollable notifications */}
+                                            <div className="flex-1 overflow-y-auto">
+                                                {notifications.length === 0 ? (
+                                                    <div className="p-8 text-center text-gray-400">
+                                                        No notifications
                                                     </div>
-                                                ))
-                                            )}
+                                                ) : (
+                                                    notifications.map(notification => (
+                                                        <div
+                                                            key={notification.id}
+                                                            className={`p-4 border-b border-gray-700 hover:bg-gray-750 cursor-pointer ${!notification.read ? 'bg-blue-900/10' : ''}`}
+                                                            onClick={() => {
+                                                                if (notification.details) {
+                                                                    const booking = bookings.find(b => b.id === notification.bookingId);
+                                                                    if (booking) {
+                                                                        setSelectedBooking(booking);
+                                                                        setShowBookingDetails(true);
+                                                                    }
+                                                                }
+                                                                setShowNotifications(false);
+                                                            }}
+                                                        >
+                                                            <div className="flex gap-3">
+                                                                <div className="flex-shrink-0">
+                                                                    {notification.type === 'new_booking' && (
+                                                                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                                                            <span className="text-sm">📌</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {notification.type === 'booking_accepted' && (
+                                                                        <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                                                                            <span className="text-sm">✓</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {notification.type === 'booking_completed' && (
+                                                                        <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
+                                                                            <span className="text-sm">✅</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {notification.type === 'booking_deleted' && (
+                                                                        <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+                                                                            <span className="text-sm">🗑️</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex justify-between items-start gap-2">
+                                                                        <h4 className="font-semibold text-sm truncate">
+                                                                            {notification.title}
+                                                                        </h4>
+                                                                        {!notification.read && (
+                                                                            <span className="h-2 w-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-sm text-gray-300 mt-1 break-words">
+                                                                        {notification.message}
+                                                                    </p>
+                                                                    
+                                                                    {notification.details && (
+                                                                        <div className="mt-3 space-y-1 text-sm text-gray-400">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="text-xs">👤</span>
+                                                                                <span className="truncate">{notification.details.customerName}</span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="text-xs">📞</span>
+                                                                                <span>{notification.details.phoneNumber}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    <p className="text-xs text-gray-500 mt-3">
+                                                                        {new Date(notification.timestamp).toLocaleTimeString([], { 
+                                                                            hour: '2-digit', 
+                                                                            minute: '2-digit'
+                                                                        })}
+                                                                        <span className="mx-2">•</span>
+                                                                        {new Date(notification.timestamp).toLocaleDateString([], {
+                                                                            month: 'short',
+                                                                            day: 'numeric'
+                                                                        })}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
+
                             </div>
                             
                             {/* Notification Settings Button */}
