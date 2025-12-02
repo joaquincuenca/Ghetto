@@ -6,9 +6,9 @@ export const useGeolocation = () => {
 
     useEffect(() => {
         navigator.geolocation.getCurrentPosition(
-        (pos) => setUserLocation({ 
-            lat: pos.coords.latitude, 
-            lng: pos.coords.longitude 
+        (pos) => setUserLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
         }),
         (err) => setError(err.message)
         );

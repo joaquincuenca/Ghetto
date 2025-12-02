@@ -130,9 +130,6 @@ export default function BookingTrackingPage() {
                         setBooking(payload.new);
                     }
                 )
-                .subscribe((status) => {
-                    console.log('Supabase subscription status:', status);
-                });
 
             return () => {
                 supabase.removeChannel(channel);

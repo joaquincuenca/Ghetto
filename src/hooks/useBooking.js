@@ -16,7 +16,6 @@ export const useBooking = () => {
     const viewModel = new BookingViewModel();
 
     const handlePickupSelect = useCallback(async (latlng, name = null) => {
-        // Handle clearing pickup
         if (!latlng || latlng === null) {
             setPickup(null);
             setPickupText("");
@@ -30,10 +29,10 @@ export const useBooking = () => {
         try {
             setLoading(true);
             const { location, routeData } = await viewModel.handleLocationSelect(
-                latlng, 
-                name, 
-                true, 
-                pickup, 
+                latlng,
+                name,
+                true,
+                pickup,
                 dropoff
             );
 
@@ -46,7 +45,6 @@ export const useBooking = () => {
                 setDuration(routeData.primary.duration);
                 setAlternativeRoutes(routeData.alternatives);
             } else {
-                // No dropoff yet, clear route
                 setRouteCoordinates([]);
                 setDistance(null);
                 setDuration(null);
@@ -65,7 +63,6 @@ export const useBooking = () => {
     }, [pickup, dropoff]);
 
     const handleDropoffSelect = useCallback(async (latlng, name = null) => {
-        // Handle clearing dropoff
         if (!latlng || latlng === null) {
             setDropoff(null);
             setDropoffText("");
@@ -79,10 +76,10 @@ export const useBooking = () => {
         try {
             setLoading(true);
             const { location, routeData } = await viewModel.handleLocationSelect(
-                latlng, 
-                name, 
-                false, 
-                pickup, 
+                latlng,
+                name,
+                false,
+                pickup,
                 dropoff
             );
 

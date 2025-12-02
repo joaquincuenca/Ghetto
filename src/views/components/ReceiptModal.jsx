@@ -318,7 +318,7 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                         <div className="text-center text-xs text-gray-400 border-t border-gray-700 pt-3">
                             <p> {formattedTimestamp}</p>
                             <p className="mt-2">
-                                By booking, you agree to our terms and conditions.
+                                By booking, you agree to our terms and conditions. Also you can send this receipt to our Facebook page
                                 For inquiries, {" "}
                                 <button
                                     onClick={handleFacebookClick}
