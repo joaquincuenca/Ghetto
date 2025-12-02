@@ -1,5 +1,5 @@
 // src/views/pages/AdminDashboard.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookingService } from '../../services/BookingService';
 import NotificationSound from '../../assets/notification.mp3';
@@ -25,12 +25,32 @@ export default function AdminDashboard() {
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [showBookingDetails, setShowBookingDetails] = useState(false);
     
+    // New state for selection and deletion
+    const [selectedBookings, setSelectedBookings] = useState([]);
+    const [isSelectAll, setIsSelectAll] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    
     const audioRef = useRef(null);
     const pollingRef = useRef(null);
     const notificationRef = useRef(null);
     const dropdownRef = useRef(null);
 
     const adminUsername = localStorage.getItem('adminUsername') || 'Admin';
+    
+
+    const filteredBookings = useMemo(() => {
+    return bookings.filter(booking => {
+        const matchesFilter = filter === 'all' || booking.status === filter;
+        const matchesSearch = 
+            booking.booking_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            booking.pickup_location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            booking.dropoff_location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (booking.user_details?.fullName && booking.user_details.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (booking.user_details?.contactNumber && booking.user_details.contactNumber.toLowerCase().includes(searchTerm.toLowerCase()));
+        return matchesFilter && matchesSearch;
+    });
+}, [bookings, filter, searchTerm]);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -80,6 +100,12 @@ export default function AdminDashboard() {
             stopPolling();
         }
     }, [notificationSettings]);
+
+    // Reset selection when filter/search changes
+    useEffect(() => {
+        setSelectedBookings([]);
+        setIsSelectAll(false);
+    }, [filter, searchTerm]);
 
     const startPolling = () => {
         if (pollingRef.current) {
@@ -213,6 +239,8 @@ export default function AdminDashboard() {
             
             setBookings(data);
             setLastBookingCount(data.length);
+            setSelectedBookings([]);
+            setIsSelectAll(false);
             setError(null);
         } catch (err) {
             setError('Failed to load bookings');
@@ -254,10 +282,82 @@ export default function AdminDashboard() {
         }
     };
 
+    // Update the handleDeleteBookings function in AdminDashboard.jsx
+    const handleDeleteBookings = async () => {
+        if (selectedBookings.length === 0) return;
+        
+        try {
+            setDeleteLoading(true);
+            
+            // Delete selected bookings using bulk delete
+            const result = await BookingService.deleteBookings(selectedBookings);
+            
+            if (result.success) {
+                // Add notification
+                addNotification({
+                    id: Date.now(),
+                    type: 'booking_deleted',
+                    title: 'Bookings Deleted',
+                    message: result.message,
+                    timestamp: new Date().toISOString(),
+                    read: false
+                });
+                
+                // Refresh bookings
+                await loadBookings();
+                setSelectedBookings([]);
+                setShowDeleteConfirm(false);
+            } else {
+                throw new Error(result.message || 'Failed to delete bookings');
+            }
+            
+        } catch (err) {
+            alert(err.message || 'Failed to delete bookings');
+            console.error(err);
+        } finally {
+            setDeleteLoading(false);
+        }
+    };
+
     const viewBookingDetails = (booking) => {
         setSelectedBooking(booking);
         setShowBookingDetails(true);
     };
+
+    // Selection handlers
+    const handleSelectBooking = (bookingId) => {
+        setSelectedBookings(prev => {
+            if (prev.includes(bookingId)) {
+                return prev.filter(id => id !== bookingId);
+            } else {
+                return [...prev, bookingId];
+            }
+        });
+    };
+
+    const handleSelectAll = () => {
+        if (isSelectAll) {
+            // Deselect all
+            setSelectedBookings([]);
+        } else {
+            // Select all filtered bookings
+            const allIds = filteredBookings.map(booking => booking.id);
+            setSelectedBookings(allIds);
+        }
+        setIsSelectAll(!isSelectAll);
+    };
+
+    // Check if all filtered bookings are selected
+    useEffect(() => {
+        if (filteredBookings.length > 0) {
+            const allSelected = filteredBookings.every(booking => 
+                selectedBookings.includes(booking.id)
+            );
+            setIsSelectAll(allSelected);
+        } else {
+            setIsSelectAll(false);
+        }
+    }, [selectedBookings, filteredBookings]);
 
     const markAllAsRead = () => {
         setNotifications(notifications.map(n => ({ ...n, read: true })));
@@ -268,17 +368,6 @@ export default function AdminDashboard() {
     };
 
     const unreadCount = notifications.filter(n => !n.read).length;
-
-    const filteredBookings = bookings.filter(booking => {
-        const matchesFilter = filter === 'all' || booking.status === filter;
-        const matchesSearch = 
-            booking.booking_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            booking.pickup_location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            booking.dropoff_location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (booking.user_details?.fullName && booking.user_details.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (booking.user_details?.contactNumber && booking.user_details.contactNumber.toLowerCase().includes(searchTerm.toLowerCase()));
-        return matchesFilter && matchesSearch;
-    });
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -320,6 +409,57 @@ export default function AdminDashboard() {
 
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100">
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-md w-full">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-red-400">⚠️ Confirm Deletion</h3>
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="text-gray-400 hover:text-white text-2xl"
+                                disabled={deleteLoading}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <p className="text-gray-300">
+                                Are you sure you want to delete <span className="font-bold text-white">{selectedBookings.length}</span> selected booking(s)?
+                            </p>
+                            <p className="text-sm text-gray-400">
+                                This action cannot be undone. All booking data including customer information will be permanently removed.
+                            </p>
+                            
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="flex-1 bg-gray-600 hover:bg-gray-500 py-3 rounded-xl font-semibold transition-colors"
+                                    disabled={deleteLoading}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteBookings}
+                                    className="flex-1 bg-red-600 hover:bg-red-700 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+                                    disabled={deleteLoading}
+                                >
+                                    {deleteLoading ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                            Deleting...
+                                        </>
+                                    ) : (
+                                        'Delete Selected'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Booking Details Modal */}
             {showBookingDetails && selectedBooking && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
@@ -569,6 +709,32 @@ export default function AdminDashboard() {
             </div>
 
             <div className="max-w-7xl mx-auto p-4 md:p-6">
+                {/* Selection Actions Bar */}
+                {selectedBookings.length > 0 && (
+                    <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="flex items-center gap-3">
+                            <span className="text-blue-400 font-semibold">
+                                {selectedBookings.length} booking(s) selected
+                            </span>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="flex-1 sm:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition-colors text-sm flex items-center justify-center gap-2"
+                            >
+                                <span>🗑️</span>
+                                Delete Selected
+                            </button>
+                            <button
+                                onClick={() => setSelectedBookings([])}
+                                className="flex-1 sm:flex-none px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-semibold transition-colors text-sm"
+                            >
+                                Clear Selection
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Stats Cards with Auto-refresh Indicator */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">
                     <div className="bg-gray-800 p-3 md:p-4 rounded-lg border border-gray-700">
@@ -705,10 +871,21 @@ export default function AdminDashboard() {
                 {/* Bookings Table - Now horizontally scrollable on mobile */}
                 <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
                     <div className="overflow-x-auto">
-                        <div className="min-w-[1000px]"> {/* Minimum width to ensure table doesn't collapse */}
+                        <div className="min-w-[1100px]"> {/* Increased minimum width for checkbox column */}
                             <table className="w-full">
                                 <thead className="bg-gray-700">
                                     <tr>
+                                        <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap w-10">
+                                            <div className="flex items-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelectAll && filteredBookings.length > 0}
+                                                    onChange={handleSelectAll}
+                                                    className="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600"
+                                                    title={isSelectAll ? "Deselect all" : "Select all"}
+                                                />
+                                            </div>
+                                        </th>
                                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Booking #</th>
                                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Customer</th>
                                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Pickup</th>
@@ -723,15 +900,24 @@ export default function AdminDashboard() {
                                 <tbody className="divide-y divide-gray-700">
                                     {filteredBookings.length === 0 ? (
                                         <tr>
-                                            <td colSpan="9" className="px-4 py-8 text-center text-gray-400 text-sm md:text-base">
+                                            <td colSpan="10" className="px-4 py-8 text-center text-gray-400 text-sm md:text-base">
                                                 No bookings found
                                             </td>
                                         </tr>
                                     ) : (
                                         filteredBookings.map((booking) => {
                                             const userDetails = formatUserDetails(booking.user_details);
+                                            const isSelected = selectedBookings.includes(booking.id);
                                             return (
-                                                <tr key={booking.id} className="hover:bg-gray-750">
+                                                <tr key={booking.id} className={`hover:bg-gray-750 ${isSelected ? 'bg-blue-900/20' : ''}`}>
+                                                    <td className="px-3 py-2 md:px-4 md:py-3 whitespace-nowrap w-10">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => handleSelectBooking(booking.id)}
+                                                            className="h-4 w-4 rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-600"
+                                                        />
+                                                    </td>
                                                     <td className="px-3 py-2 md:px-4 md:py-3 whitespace-nowrap">
                                                         <button
                                                             onClick={() => viewBookingDetails(booking)}
@@ -757,10 +943,10 @@ export default function AdminDashboard() {
                                                         {booking.dropoff_location}
                                                     </td>
                                                     <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm whitespace-nowrap">
-                                                        {booking.distance.toFixed(2)} km
+                                                        {booking.distance?.toFixed(2) || '0'} km
                                                     </td>
                                                     <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm font-semibold whitespace-nowrap">
-                                                        ₱{booking.fare.toFixed(2)}
+                                                        ₱{booking.fare?.toFixed(2) || '0'}
                                                     </td>
                                                     <td className="px-3 py-2 md:px-4 md:py-3 whitespace-nowrap">
                                                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(booking.status)} text-white`}>

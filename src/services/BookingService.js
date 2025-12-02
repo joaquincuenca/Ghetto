@@ -218,18 +218,54 @@ export class BookingService {
         }
     }
 
-    static async deleteBooking(bookingNumber) {
+    static async deleteBooking(bookingId) {
         try {
+            console.log('Deleting booking with ID:', bookingId);
+            
             const { error } = await supabase
                 .from('bookings')
-                .update({ status: 'cancelled' })
-                .eq('booking_number', bookingNumber);
+                .delete()
+                .eq('id', bookingId);
 
-            if (error) throw error;
+            if (error) {
+                console.error('Supabase delete error:', error);
+                throw error;
+            }
 
-            return true;
+            console.log('Booking deleted successfully:', bookingId);
+            return { success: true, message: 'Booking deleted successfully' };
         } catch (error) {
-            throw new Error('Failed to cancel booking');
+            console.error('Error in deleteBooking:', error);
+            throw new Error(error.message || 'Failed to delete booking');
+        }
+    }
+
+    static async deleteBookings(bookingIds) {
+        try {
+            console.log('Deleting multiple bookings:', bookingIds);
+            
+            if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
+                throw new Error('No booking IDs provided');
+            }
+
+            const { error } = await supabase
+                .from('bookings')
+                .delete()
+                .in('id', bookingIds);
+
+            if (error) {
+                console.error('Supabase bulk delete error:', error);
+                throw error;
+            }
+
+            console.log('Bookings deleted successfully:', bookingIds);
+            return { 
+                success: true, 
+                message: `${bookingIds.length} booking(s) deleted successfully` 
+            };
+        } catch (error) {
+            console.error('Error in deleteBookings:', error);
+            throw new Error(error.message || 'Failed to delete bookings');
         }
     }
 
@@ -278,6 +314,34 @@ export class BookingService {
             }));
         } catch (error) {
             throw new Error('Failed to search bookings by customer');
+        }
+    }
+    
+    // Helper method to get booking by ID
+    static async getBookingById(bookingId) {
+        try {
+            const { data, error } = await supabase
+                .from('bookings')
+                .select('*')
+                .eq('id', bookingId)
+                .single();
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    throw new Error('Booking not found');
+                }
+                throw error;
+            }
+
+            return {
+                ...data,
+                user_details: {
+                    fullName: data.user_name || '',
+                    contactNumber: data.user_phone || ''
+                }
+            };
+        } catch (error) {
+            throw error;
         }
     }
 }
