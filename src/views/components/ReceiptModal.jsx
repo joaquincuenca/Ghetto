@@ -49,7 +49,6 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
             
             return date.toLocaleString();
         } catch (error) {
-            console.error('Error formatting timestamp:', error);
             return new Date().toLocaleString();
         }
     };
@@ -71,7 +70,6 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
             [name]: value
         }));
         
-        // Clear error when user starts typing
         if (formErrors[name]) {
             setFormErrors(prev => ({
                 ...prev,
@@ -93,7 +91,6 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
         if (!userDetails.contactNumber.trim()) {
             errors.contactNumber = "Contact number is required";
         } else {
-            // Basic phone number validation (Philippines format)
             const phoneRegex = /^(09|\+639)\d{9}$/;
             const cleanedNumber = userDetails.contactNumber.trim().replace(/\s+/g, '');
             
@@ -107,23 +104,18 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
     };
 
     const handleBookOnFB = async () => {
-        // First show user form if not filled
         if (!showUserForm) {
             setShowUserForm(true);
             return;
         }
         
-        // Validate user details before proceeding
-        if (!validateUserDetails()) {
-            return;
-        }
+        if (!validateUserDetails()) return;
         
         setShowConfirm(false);
         setSaving(true);
         setSaveError(null);
 
         try {
-            // Create a proper booking object with location names and user details
             const bookingWithNames = {
                 ...booking,
                 pickup: {
@@ -134,53 +126,37 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                     ...booking.dropoff,
                     displayName: dropoffText || 'Unknown Location'
                 },
-                // Make sure this part exists:
                 userDetails: {
                     fullName: userDetails.fullName,
                     contactNumber: userDetails.contactNumber
                 }
             };
 
-            console.log('Saving booking with user details:', bookingWithNames);
             await BookingService.saveBooking(bookingWithNames);
-            console.log('✅ Booking saved successfully with user details!');
             setSaved(true);
             
-            // Redirect to tracking page after a short delay
             setTimeout(() => {
                 navigate(`/track/${booking.bookingNumber}`);
             }, 1500);
         } catch (error) {
-            console.error('Failed to save booking:', error);
             setSaveError("Failed to save booking. Please try again.");
             setSaving(false);
         }
     };
 
-    // Function to handle Facebook link click
     const handleFacebookClick = () => {
         window.open(FACEBOOK_PAGE_URL, '_blank', 'noopener,noreferrer');
     };
 
-    // Reset form when modal is closed
     useEffect(() => {
         if (!show) {
             setShowUserForm(false);
-            setUserDetails({
-                fullName: "",
-                contactNumber: ""
-            });
-            setFormErrors({
-                fullName: "",
-                contactNumber: ""
-            });
+            setUserDetails({ fullName: "", contactNumber: "" });
+            setFormErrors({ fullName: "", contactNumber: "" });
         }
     }, [show]);
 
-    // Check if the modal should be shown
-    if (!show) {
-        return null;
-    }
+    if (!show) return null;
 
     return (
         <>
@@ -210,16 +186,12 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
 
                             <div className="flex justify-between items-center py-2 border-t border-gray-700">
                                 <span className="text-xs text-gray-400">Distance</span>
-                                <span className="text-sm sm:text-base font-semibold">
-                                    {distance.toFixed(2)} km
-                                </span>
+                                <span className="text-sm sm:text-base font-semibold">{distance.toFixed(2)} km</span>
                             </div>
 
                             <div className="flex justify-between items-center py-2 border-t border-gray-700">
                                 <span className="text-xs text-gray-400">Est. Duration</span>
-                                <span className="text-sm sm:text-base font-semibold">
-                                    {Math.round(duration)} min
-                                </span>
+                                <span className="text-sm sm:text-base font-semibold">{Math.round(duration)} min</span>
                             </div>
 
                             <div className="bg-gray-800 p-3 rounded-lg space-y-2">
@@ -232,9 +204,7 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
 
                                 {extraDistance > 0 && (
                                     <div className="flex justify-between text-sm">
-                                        <span>
-                                            Extra Distance ({extraDistance.toFixed(2)} km × ₱{EXTRA_RATE})
-                                        </span>
+                                        <span>Extra Distance ({extraDistance.toFixed(2)} km × ₱{EXTRA_RATE})</span>
                                         <span>₱{extraFare.toFixed(2)}</span>
                                     </div>
                                 )}
@@ -247,21 +217,16 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                                 </div>
                             </div>
 
-                            {/* User Details Form (shown when needed) */}
                             {showUserForm && (
                                 <div className="bg-gray-800 p-4 rounded-lg space-y-4 mt-4 border border-gray-700">
                                     <div className="text-center">
                                         <h3 className="text-lg font-semibold text-white mb-2">📝 Your Details</h3>
-                                        <p className="text-xs text-gray-400">
-                                            Please provide your details to secure your booking
-                                        </p>
+                                        <p className="text-xs text-gray-400">Please provide your details to secure your booking</p>
                                     </div>
                                     
                                     <div className="space-y-3">
                                         <div>
-                                            <label className="block text-xs text-gray-400 mb-1" htmlFor="fullName">
-                                                Full Name *
-                                            </label>
+                                            <label className="block text-xs text-gray-400 mb-1" htmlFor="fullName">Full Name *</label>
                                             <input
                                                 type="text"
                                                 id="fullName"
@@ -272,15 +237,11 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                                                 className={`w-full bg-gray-900 border ${formErrors.fullName ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                                 disabled={saving}
                                             />
-                                            {formErrors.fullName && (
-                                                <p className="text-xs text-red-400 mt-1">{formErrors.fullName}</p>
-                                            )}
+                                            {formErrors.fullName && <p className="text-xs text-red-400 mt-1">{formErrors.fullName}</p>}
                                         </div>
                                         
                                         <div>
-                                            <label className="block text-xs text-gray-400 mb-1" htmlFor="contactNumber">
-                                                Contact Number *
-                                            </label>
+                                            <label className="block text-xs text-gray-400 mb-1" htmlFor="contactNumber">Contact Number *</label>
                                             <input
                                                 type="tel"
                                                 id="contactNumber"
@@ -291,35 +252,22 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                                                 className={`w-full bg-gray-900 border ${formErrors.contactNumber ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                                 disabled={saving}
                                             />
-                                            {formErrors.contactNumber && (
-                                                <p className="text-xs text-red-400 mt-1">{formErrors.contactNumber}</p>
-                                            )}
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                This is how we'll contact you about your booking
-                                            </p>
+                                            {formErrors.contactNumber && <p className="text-xs text-red-400 mt-1">{formErrors.contactNumber}</p>}
+                                            <p className="text-xs text-gray-500 mt-1">This is how we'll contact you about your booking</p>
                                         </div>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {saveError && (
-                            <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg">
-                                <p className="text-red-300 text-sm">❌ {saveError}</p>
-                            </div>
-                        )}
-
-                        {saved && (
-                            <div className="mb-4 p-3 bg-green-900/50 border border-green-700 rounded-lg">
-                                <p className="text-green-300 text-sm">✅ Booking saved! Redirecting to tracking...</p>
-                            </div>
-                        )}
+                        {saveError && <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg"><p className="text-red-300 text-sm">❌ {saveError}</p></div>}
+                        {saved && <div className="mb-4 p-3 bg-green-900/50 border border-green-700 rounded-lg"><p className="text-green-300 text-sm">✅ Booking saved! Redirecting to tracking...</p></div>}
 
                         <div className="text-center text-xs text-gray-400 border-t border-gray-700 pt-3">
-                            <p> {formattedTimestamp}</p>
+                            <p>{formattedTimestamp}</p>
                             <p className="mt-2">
-                                By booking, you agree to our terms and conditions. Also you can send this receipt to our Facebook page
-                                For inquiries, {" "}
+                                By booking, you agree to our terms and conditions. Also you can send this receipt to our Facebook page.
+                                For inquiries,{" "}
                                 <button
                                     onClick={handleFacebookClick}
                                     className="text-blue-400 hover:text-blue-300 underline transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded"
@@ -343,14 +291,8 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                         <button
                             onClick={() => {
                                 if (showUserForm) {
-                                    // If form is shown, validate and show confirmation
-                                    if (validateUserDetails()) {
-                                        setShowConfirm(true);
-                                    }
-                                } else {
-                                    // First step: show user form
-                                    setShowUserForm(true);
-                                }
+                                    if (validateUserDetails()) setShowConfirm(true);
+                                } else setShowUserForm(true);
                             }}
                             disabled={saving}
                             className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
@@ -360,26 +302,19 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                                     <span className="animate-spin">⏳</span>
                                     Saving...
                                 </>
-                            ) : showUserForm ? (
-                                "Proceed to Confirm"
-                            ) : (
-                                "Book Now"
-                            )}
+                            ) : showUserForm ? "Proceed to Confirm" : "Book Now"}
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Confirmation Dialog */}
             {showConfirm && (
                 <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[10000] p-4">
                     <div className="bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full p-6 border border-gray-700">
                         <div className="text-center mb-6">
                             <div className="text-4xl mb-3">⚠️</div>
                             <h3 className="text-xl font-bold text-white mb-2">Confirm Your Booking</h3>
-                            <p className="text-sm text-gray-300">
-                                Please verify your booking details below:
-                            </p>
+                            <p className="text-sm text-gray-300">Please verify your booking details below:</p>
                         </div>
 
                         <div className="bg-gray-900 rounded-lg p-3 mb-6 space-y-4">
