@@ -7,7 +7,7 @@ export default function AddressSearch({
     value, 
     setValue, 
     onSelect,
-    onClear, // Add onClear prop
+    onClear,
     showCurrentLocation, 
     onCurrentLocation 
 }) {
@@ -15,10 +15,9 @@ export default function AddressSearch({
     const [results, setResults] = useState([]);
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [isSelected, setIsSelected] = useState(false); // Track if address was selected
+    const [isSelected, setIsSelected] = useState(false);
     const wrapperRef = useRef(null);
 
-    // Close dropdown when clicking outside
     useEffect(() => {
         function handleClickOutside(event) {
             if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -29,10 +28,8 @@ export default function AddressSearch({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Debounced search with proper async handling
     useEffect(() => {
         const searchAddress = async () => {
-            // Don't search if address was just selected or input is too short
             if (isSelected || !inputValue || inputValue.length < 2) {
                 setResults([]);
                 setOpen(false);
@@ -40,16 +37,12 @@ export default function AddressSearch({
             }
 
             setLoading(true);
-            console.log("🔍 Searching for:", inputValue);
 
             try {
                 const formatted = await GeocodeService.searchAddress(inputValue);
-                console.log("✅ Search results:", formatted);
-                
                 setResults(formatted || []);
                 setOpen(formatted && formatted.length > 0);
-            } catch (error) {
-                console.error("❌ Search error:", error);
+            } catch {
                 setResults([]);
                 setOpen(false);
             } finally {
@@ -57,18 +50,13 @@ export default function AddressSearch({
             }
         };
 
-        // Debounce: wait 500ms after user stops typing
         const timeoutId = setTimeout(searchAddress, 500);
         return () => clearTimeout(timeoutId);
     }, [inputValue, isSelected]);
 
-    // Sync with external value changes
     useEffect(() => {
-        // Only update if the value is different and not empty
         if (value !== inputValue) {
             setInputValue(value);
-            // If value is being set externally (e.g., from map click or reverse geocode),
-            // mark it as selected to prevent dropdown
             if (value && value.length > 0) {
                 setIsSelected(true);
             }
@@ -78,25 +66,21 @@ export default function AddressSearch({
     function handleInputChange(newValue) {
         setInputValue(newValue);
         setValue(newValue);
-        setIsSelected(false); // User is typing again, allow searches
+        setIsSelected(false);
     }
 
     function choose(place) {
-        console.log("📍 Selected place:", place);
-        
         const latlng = { 
             lat: parseFloat(place.lat), 
             lng: parseFloat(place.lon) 
         };
-        
-        // Update input and value
+
         setValue(place.display_name);
         setInputValue(place.display_name);
-        setIsSelected(true); // Mark as selected
+        setIsSelected(true);
         setOpen(false);
         setResults([]);
-        
-        // Call onSelect with coordinates
+
         if (onSelect) {
             onSelect(latlng);
         }
@@ -107,9 +91,8 @@ export default function AddressSearch({
         setValue("");
         setResults([]);
         setOpen(false);
-        setIsSelected(false); // Reset selection state
-        
-        // Notify parent to clear the location
+        setIsSelected(false);
+
         if (onClear) {
             onClear();
         }
@@ -132,7 +115,6 @@ export default function AddressSearch({
                         value={inputValue}
                         onChange={(e) => handleInputChange(e.target.value)}
                         onFocus={() => {
-                            // Only show dropdown if user hasn't selected an address yet
                             if (results.length > 0 && !isSelected) {
                                 setOpen(true);
                             }
@@ -170,14 +152,12 @@ export default function AddressSearch({
                 )}
             </div>
 
-            {/* Loading indicator */}
             {loading && (
                 <div className="absolute left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-xl p-2 text-center text-xs text-gray-400 z-50">
                     Searching...
                 </div>
             )}
 
-            {/* Suggestions dropdown */}
             {open && !loading && results.length > 0 && (
                 <div className="absolute left-0 right-0 bg-gray-800 border border-gray-700 rounded-xl max-h-60 sm:max-h-72 overflow-auto z-50 shadow-lg mt-1">
                     {results.map((place, i) => (
@@ -193,7 +173,6 @@ export default function AddressSearch({
                 </div>
             )}
 
-            {/* No results message */}
             {open && !loading && inputValue.length >= 2 && results.length === 0 && (
                 <div className="absolute left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-xl p-3 text-center text-xs text-gray-400 z-50">
                     No places found. Try a different search term.
