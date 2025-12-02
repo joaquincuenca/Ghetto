@@ -1,5 +1,5 @@
 // src/components/ReceiptModal.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FARE_CONFIG } from "../../utils/constants";
 import { BookingService } from "../../services/BookingService";
@@ -7,9 +7,18 @@ import { BookingService } from "../../services/BookingService";
 export default function ReceiptModal({ show, booking, pickupText, dropoffText, onClose }) {
     const navigate = useNavigate();
     const [showConfirm, setShowConfirm] = useState(false);
+    const [showUserForm, setShowUserForm] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState(null);
     const [saved, setSaved] = useState(false);
+    const [userDetails, setUserDetails] = useState({
+        fullName: "",
+        contactNumber: ""
+    });
+    const [formErrors, setFormErrors] = useState({
+        fullName: "",
+        contactNumber: ""
+    });
     const FACEBOOK_PAGE_URL = "https://www.facebook.com/profile.php?id=61582462506784";
 
     // Extract values from booking prop with safe defaults
@@ -54,13 +63,67 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
     const extraDistance = Math.max(0, distance - BASE_KM);
     const extraFare = extraDistance * EXTRA_RATE;
 
+    // Handle user details input change
+    const handleUserDetailsChange = (e) => {
+        const { name, value } = e.target;
+        setUserDetails(prev => ({
+            ...prev,
+            [name]: value
+        }));
+        
+        // Clear error when user starts typing
+        if (formErrors[name]) {
+            setFormErrors(prev => ({
+                ...prev,
+                [name]: ""
+            }));
+        }
+    };
+
+    // Validate user details
+    const validateUserDetails = () => {
+        const errors = {};
+        
+        if (!userDetails.fullName.trim()) {
+            errors.fullName = "Full name is required";
+        } else if (userDetails.fullName.trim().length < 2) {
+            errors.fullName = "Name must be at least 2 characters";
+        }
+        
+        if (!userDetails.contactNumber.trim()) {
+            errors.contactNumber = "Contact number is required";
+        } else {
+            // Basic phone number validation (Philippines format)
+            const phoneRegex = /^(09|\+639)\d{9}$/;
+            const cleanedNumber = userDetails.contactNumber.trim().replace(/\s+/g, '');
+            
+            if (!phoneRegex.test(cleanedNumber)) {
+                errors.contactNumber = "Please enter a valid Philippine phone number (09XXXXXXXXX or +639XXXXXXXXX)";
+            }
+        }
+        
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
     const handleBookOnFB = async () => {
+        // First show user form if not filled
+        if (!showUserForm) {
+            setShowUserForm(true);
+            return;
+        }
+        
+        // Validate user details before proceeding
+        if (!validateUserDetails()) {
+            return;
+        }
+        
         setShowConfirm(false);
         setSaving(true);
         setSaveError(null);
 
         try {
-            // Create a proper booking object with location names
+            // Create a proper booking object with location names and user details
             const bookingWithNames = {
                 ...booking,
                 pickup: {
@@ -70,21 +133,26 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                 dropoff: {
                     ...booking.dropoff,
                     displayName: dropoffText || 'Unknown Location'
+                },
+                // Make sure this part exists:
+                userDetails: {
+                    fullName: userDetails.fullName,
+                    contactNumber: userDetails.contactNumber
                 }
             };
 
+            console.log('Saving booking with user details:', bookingWithNames);
             await BookingService.saveBooking(bookingWithNames);
-            console.log('✅ Booking saved successfully!');
+            console.log('✅ Booking saved successfully with user details!');
             setSaved(true);
             
-            // Redirect to tracking page
+            // Redirect to tracking page after a short delay
             setTimeout(() => {
                 navigate(`/track/${booking.bookingNumber}`);
-            }, 1000);
+            }, 1500);
         } catch (error) {
             console.error('Failed to save booking:', error);
             setSaveError("Failed to save booking. Please try again.");
-        } finally {
             setSaving(false);
         }
     };
@@ -93,6 +161,21 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
     const handleFacebookClick = () => {
         window.open(FACEBOOK_PAGE_URL, '_blank', 'noopener,noreferrer');
     };
+
+    // Reset form when modal is closed
+    useEffect(() => {
+        if (!show) {
+            setShowUserForm(false);
+            setUserDetails({
+                fullName: "",
+                contactNumber: ""
+            });
+            setFormErrors({
+                fullName: "",
+                contactNumber: ""
+            });
+        }
+    }, [show]);
 
     // Check if the modal should be shown
     if (!show) {
@@ -163,6 +246,61 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                                     <span>₱{fare.toFixed(2)}</span>
                                 </div>
                             </div>
+
+                            {/* User Details Form (shown when needed) */}
+                            {showUserForm && (
+                                <div className="bg-gray-800 p-4 rounded-lg space-y-4 mt-4 border border-gray-700">
+                                    <div className="text-center">
+                                        <h3 className="text-lg font-semibold text-white mb-2">📝 Your Details</h3>
+                                        <p className="text-xs text-gray-400">
+                                            Please provide your details to secure your booking
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1" htmlFor="fullName">
+                                                Full Name *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                id="fullName"
+                                                name="fullName"
+                                                value={userDetails.fullName}
+                                                onChange={handleUserDetailsChange}
+                                                placeholder="Enter your full name"
+                                                className={`w-full bg-gray-900 border ${formErrors.fullName ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                                disabled={saving}
+                                            />
+                                            {formErrors.fullName && (
+                                                <p className="text-xs text-red-400 mt-1">{formErrors.fullName}</p>
+                                            )}
+                                        </div>
+                                        
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1" htmlFor="contactNumber">
+                                                Contact Number *
+                                            </label>
+                                            <input
+                                                type="tel"
+                                                id="contactNumber"
+                                                name="contactNumber"
+                                                value={userDetails.contactNumber}
+                                                onChange={handleUserDetailsChange}
+                                                placeholder="09XXXXXXXXX or +639XXXXXXXXX"
+                                                className={`w-full bg-gray-900 border ${formErrors.contactNumber ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                                disabled={saving}
+                                            />
+                                            {formErrors.contactNumber && (
+                                                <p className="text-xs text-red-400 mt-1">{formErrors.contactNumber}</p>
+                                            )}
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                This is how we'll contact you about your booking
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {saveError && (
@@ -173,20 +311,21 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
 
                         {saved && (
                             <div className="mb-4 p-3 bg-green-900/50 border border-green-700 rounded-lg">
-                                <p className="text-green-300 text-sm">✅ Booking saved to database!</p>
+                                <p className="text-green-300 text-sm">✅ Booking saved! Redirecting to tracking...</p>
                             </div>
                         )}
 
                         <div className="text-center text-xs text-gray-400 border-t border-gray-700 pt-3">
                             <p> {formattedTimestamp}</p>
                             <p className="mt-2">
-                                Screenshot this receipt for your booking or{" "}
+                                By booking, you agree to our terms and conditions.
+                                For inquiries, {" "}
                                 <button
                                     onClick={handleFacebookClick}
                                     className="text-blue-400 hover:text-blue-300 underline transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded"
                                     title="Go to our Facebook page"
                                 >
-                                    direct to send to our facebook page
+                                    contact us on Facebook
                                 </button>
                             </p>
                         </div>
@@ -202,7 +341,17 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                         </button>
 
                         <button
-                            onClick={() => setShowConfirm(true)}
+                            onClick={() => {
+                                if (showUserForm) {
+                                    // If form is shown, validate and show confirmation
+                                    if (validateUserDetails()) {
+                                        setShowConfirm(true);
+                                    }
+                                } else {
+                                    // First step: show user form
+                                    setShowUserForm(true);
+                                }
+                            }}
                             disabled={saving}
                             className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
                         >
@@ -211,8 +360,10 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                                     <span className="animate-spin">⏳</span>
                                     Saving...
                                 </>
+                            ) : showUserForm ? (
+                                "Proceed to Confirm"
                             ) : (
-                                "Continue"
+                                "Book Now"
                             )}
                         </button>
                     </div>
@@ -227,33 +378,64 @@ export default function ReceiptModal({ show, booking, pickupText, dropoffText, o
                             <div className="text-4xl mb-3">⚠️</div>
                             <h3 className="text-xl font-bold text-white mb-2">Confirm Your Booking</h3>
                             <p className="text-sm text-gray-300">
-                                Are your pickup and drop-off locations correct?
+                                Please verify your booking details below:
                             </p>
                         </div>
 
-                        <div className="bg-gray-900 rounded-lg p-3 mb-6 space-y-2">
-                            <div>
-                                <p className="text-xs text-gray-400">From:</p>
-                                <p className="text-sm text-white font-medium">{pickupText}</p>
+                        <div className="bg-gray-900 rounded-lg p-3 mb-6 space-y-4">
+                            <div className="space-y-2">
+                                <div>
+                                    <p className="text-xs text-gray-400">From:</p>
+                                    <p className="text-sm text-white font-medium">{pickupText}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-400">To:</p>
+                                    <p className="text-sm text-white font-medium">{dropoffText}</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-xs text-gray-400">To:</p>
-                                <p className="text-sm text-white font-medium">{dropoffText}</p>
+                            
+                            <div className="border-t border-gray-700 pt-3 space-y-2">
+                                <div>
+                                    <p className="text-xs text-gray-400">Name:</p>
+                                    <p className="text-sm text-white font-medium">{userDetails.fullName}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-400">Contact:</p>
+                                    <p className="text-sm text-white font-medium">{userDetails.contactNumber}</p>
+                                </div>
                             </div>
+                            
+                            <div className="border-t border-gray-700 pt-3">
+                                <p className="text-xs text-gray-400">Total Fare:</p>
+                                <p className="text-lg text-green-400 font-bold">₱{fare.toFixed(2)}</p>
+                            </div>
+                        </div>
+
+                        <div className="text-xs text-gray-400 mb-6 text-center">
+                            <p>Your contact details will be used to notify you about your ride status.</p>
                         </div>
 
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setShowConfirm(false)}
                                 className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg font-semibold transition-colors"
+                                disabled={saving}
                             >
-                                Cancel
+                                Edit Details
                             </button>
                             <button
                                 onClick={handleBookOnFB}
-                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                                disabled={saving}
                             >
-                                Confirm
+                                {saving ? (
+                                    <>
+                                        <span className="animate-spin">⏳</span>
+                                        Saving...
+                                    </>
+                                ) : (
+                                    "Confirm & Save"
+                                )}
                             </button>
                         </div>
                     </div>

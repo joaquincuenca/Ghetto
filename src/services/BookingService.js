@@ -26,6 +26,9 @@ export class BookingService {
             console.log('📦 Full booking object:', booking);
             console.log('📍 Pickup object:', booking.pickup);
             console.log('📍 Dropoff object:', booking.dropoff);
+            
+            // NEW: Log user details
+            console.log('👤 User details:', booking.userDetails);
 
             // Handle both Location objects and plain objects with displayName or name
             const pickupName = booking.pickup?.displayName || booking.pickup?.name || 'Unknown Location';
@@ -80,7 +83,11 @@ export class BookingService {
                 duration: booking.duration || 0,
                 fare: booking.fare || 0,
                 timestamp: getSafeTimestamp(booking.timestamp),
-                status: booking.status || 'pending'
+                status: booking.status || 'pending',
+                
+                // NEW: Add user details
+                user_name: booking.userDetails?.fullName || '',
+                user_phone: booking.userDetails?.contactNumber || ''
             };
 
             console.log('📤 Data being sent to Supabase:', bookingData);
@@ -94,7 +101,17 @@ export class BookingService {
             if (error) throw error;
 
             console.log('✅ Booking saved to database:', data);
-            return data;
+            
+            // NEW: Return with user_details object for consistency
+            const bookingWithUserDetails = {
+                ...data,
+                user_details: {
+                    fullName: data.user_name || '',
+                    contactNumber: data.user_phone || ''
+                }
+            };
+            
+            return bookingWithUserDetails;
         } catch (error) {
             console.error('❌ Error saving booking:', error);
             throw new Error('Failed to save booking to database');
@@ -122,7 +139,17 @@ export class BookingService {
             }
 
             console.log('✅ Booking fetched:', data);
-            return data;
+            
+            // NEW: Add user_details object for frontend compatibility
+            const bookingWithUserDetails = {
+                ...data,
+                user_details: {
+                    fullName: data.user_name || '',
+                    contactNumber: data.user_phone || ''
+                }
+            };
+            
+            return bookingWithUserDetails;
         } catch (error) {
             console.error('❌ Error fetching booking:', error);
             throw error;
@@ -145,7 +172,16 @@ export class BookingService {
 
             if (error) throw error;
 
-            return data;
+            // NEW: Add user_details object to each booking
+            const bookingsWithUserDetails = data.map(booking => ({
+                ...booking,
+                user_details: {
+                    fullName: booking.user_name || '',
+                    contactNumber: booking.user_phone || ''
+                }
+            }));
+            
+            return bookingsWithUserDetails;
         } catch (error) {
             console.error('❌ Error fetching bookings:', error);
             throw new Error('Failed to fetch bookings');
@@ -173,7 +209,17 @@ export class BookingService {
             if (error) throw error;
 
             console.log('✅ Booking status updated:', data);
-            return data;
+            
+            // NEW: Add user_details object
+            const bookingWithUserDetails = {
+                ...data,
+                user_details: {
+                    fullName: data.user_name || '',
+                    contactNumber: data.user_phone || ''
+                }
+            };
+            
+            return bookingWithUserDetails;
         } catch (error) {
             console.error('❌ Error updating booking status:', error);
             throw new Error('Failed to update booking status');
@@ -229,9 +275,18 @@ export class BookingService {
 
             console.log('✅ Booking cancelled successfully:', data);
             
+            // NEW: Add user_details object
+            const bookingWithUserDetails = {
+                ...data,
+                user_details: {
+                    fullName: data.user_name || '',
+                    contactNumber: data.user_phone || ''
+                }
+            };
+            
             return {
                 success: true,
-                data: data,
+                data: bookingWithUserDetails,
                 message: 'Booking cancelled successfully'
             };
         } catch (error) {
@@ -282,10 +337,50 @@ export class BookingService {
 
             if (error) throw error;
 
-            return data;
+            // NEW: Add user_details object to each booking
+            const bookingsWithUserDetails = data.map(booking => ({
+                ...booking,
+                user_details: {
+                    fullName: booking.user_name || '',
+                    contactNumber: booking.user_phone || ''
+                }
+            }));
+            
+            return bookingsWithUserDetails;
         } catch (error) {
             console.error('❌ Error searching bookings:', error);
             throw new Error('Failed to search bookings');
+        }
+    }
+    
+    /**
+     * NEW: Search bookings by customer name or phone
+     * @param {string} searchTerm - Customer name or phone to search for
+     * @returns {Promise<Array>} Array of matching bookings
+     */
+    static async searchBookingsByCustomer(searchTerm) {
+        try {
+            const { data, error } = await supabase
+                .from('bookings')
+                .select('*')
+                .or(`user_name.ilike.%${searchTerm}%,user_phone.ilike.%${searchTerm}%`)
+                .order('timestamp', { ascending: false });
+
+            if (error) throw error;
+
+            // Add user_details object to each booking
+            const bookingsWithUserDetails = data.map(booking => ({
+                ...booking,
+                user_details: {
+                    fullName: booking.user_name || '',
+                    contactNumber: booking.user_phone || ''
+                }
+            }));
+            
+            return bookingsWithUserDetails;
+        } catch (error) {
+            console.error('❌ Error searching bookings by customer:', error);
+            throw new Error('Failed to search bookings by customer');
         }
     }
 }
