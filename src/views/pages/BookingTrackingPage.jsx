@@ -19,11 +19,13 @@ export default function BookingTrackingPage() {
     const [statusUpdateTime, setStatusUpdateTime] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [autoRefresh, setAutoRefresh] = useState(true);
+    const [isCancelling, setIsCancelling] = useState(false);
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
     
     const pollingRef = useRef(null);
     const audioRef = useRef(null);
     const statusChangedRef = useRef(false);
-    const hasFetchedRef = useRef(false); // Add this to prevent multiple fetches
+    const hasFetchedRef = useRef(false);
 
     useEffect(() => {
         if (bookingNumber && !hasFetchedRef.current) {
@@ -74,22 +76,20 @@ export default function BookingTrackingPage() {
                 if (!isRefreshing && booking?.status !== 'completed' && booking?.status !== 'cancelled') {
                     loadBooking();
                 }
-            }, 5000); // Check every 5 seconds
+            }, 5000);
         }
     };
 
     useEffect(() => {
         setupPolling();
-    }, [autoRefresh, booking]); // Add booking as dependency
+    }, [autoRefresh, booking]);
 
     const loadBooking = async () => {
         if (!bookingNumber) return;
         
         try {
             setIsRefreshing(true);
-            console.log('Fetching booking:', bookingNumber); // Debug log
             const data = await BookingService.getBookingByNumber(bookingNumber);
-            console.log('Booking data received:', data); // Debug log
             
             if (!data) {
                 throw new Error('Booking not found');
@@ -121,12 +121,11 @@ export default function BookingTrackingPage() {
                         filter: `booking_number=eq.${bookingNumber}`
                     },
                     (payload) => {
-                        console.log('Real-time update received:', payload.new); // Debug log
                         setBooking(payload.new);
                     }
                 )
                 .subscribe((status) => {
-                    console.log('Supabase subscription status:', status); // Debug log
+                    console.log('Supabase subscription status:', status);
                 });
 
             return () => {
@@ -137,13 +136,48 @@ export default function BookingTrackingPage() {
         }
     };
 
+    const handleCancelBooking = async () => {
+        if (!booking || !bookingNumber) return;
+        
+        try {
+            setIsCancelling(true);
+            setShowCancelConfirm(false);
+            
+            // Call the cancel booking service
+            const result = await BookingService.cancelBooking(bookingNumber);
+            
+            if (result.success) {
+                // Update local state immediately
+                setBooking(prev => ({
+                    ...prev,
+                    status: 'cancelled'
+                }));
+                
+                // Show success message
+                alert('Booking has been cancelled successfully.');
+                
+                // Stop auto-refresh since booking is cancelled
+                setAutoRefresh(false);
+                if (pollingRef.current) {
+                    clearInterval(pollingRef.current);
+                }
+            } else {
+                throw new Error(result.message || 'Failed to cancel booking');
+            }
+        } catch (err) {
+            console.error('Error cancelling booking:', err);
+            alert(`Failed to cancel booking: ${err.message}`);
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
     const playStatusChangeSound = (status) => {
         if (audioRef.current) {
             audioRef.current.currentTime = 0;
             audioRef.current.play().catch(e => console.log("Audio play failed:", e));
         }
         
-        // Show browser notification
         if ("Notification" in window && Notification.permission === "granted") {
             const statusMessages = {
                 'pending': 'Waiting for driver to accept...',
@@ -187,17 +221,11 @@ export default function BookingTrackingPage() {
         return 'N/A';
     };
 
-    // Add a retry function for debugging
     const retryLoading = () => {
         setLoading(true);
         setError(null);
         loadBooking();
     };
-
-    // Debug component to show current state
-    if (process.env.NODE_ENV === 'development') {
-        console.log('Current state:', { loading, error, booking, bookingNumber });
-    }
 
     if (loading) {
         return (
@@ -248,10 +276,52 @@ export default function BookingTrackingPage() {
         );
     }
 
+    // Check if booking can be cancelled
+    const canCancel = ['pending', 'confirmed'].includes(booking.status);
+
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 p-4">
-            <div className="max-w-2xl mx-auto py-8">
+            {/* Cancel Confirmation Modal */}
+            {showCancelConfirm && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-md w-full">
+                        <div className="text-center mb-6">
+                            <div className="text-5xl mb-4">⚠️</div>
+                            <h3 className="text-xl font-bold mb-2">Cancel Booking?</h3>
+                            <p className="text-gray-400 text-sm">
+                                Are you sure you want to cancel booking #{bookingNumber}? 
+                                This action cannot be undone.
+                            </p>
+                        </div>
+                        
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowCancelConfirm(false)}
+                                className="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-semibold transition-colors"
+                                disabled={isCancelling}
+                            >
+                                Go Back
+                            </button>
+                            <button
+                                onClick={handleCancelBooking}
+                                disabled={isCancelling}
+                                className="flex-1 bg-red-600 hover:bg-red-700 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+                            >
+                                {isCancelling ? (
+                                    <>
+                                        <div className="animate-spin">⟳</div>
+                                        Cancelling...
+                                    </>
+                                ) : (
+                                    'Yes, Cancel'
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
+            <div className="max-w-2xl mx-auto py-8">
                 {/* Header with Auto-refresh Toggle */}
                 <div className="text-center mb-8 relative">
                     <div className="absolute top-0 right-0">
@@ -318,10 +388,7 @@ export default function BookingTrackingPage() {
 
                     {/* Progress Steps */}
                     <div className="p-6 relative">
-
-                        {/* Steps Container */}
                         <div className="relative z-10">
-                            {/* Steps */}
                             <div className="flex justify-between items-center mb-2">
                                 {/* Step 1 */}
                                 <div className={`flex flex-col items-center ${['confirmed', 'completed'].includes(booking.status) ? 'text-blue-400' : 'text-gray-400'}`}>
@@ -363,10 +430,7 @@ export default function BookingTrackingPage() {
 
                         {/* Background Line Container */}
                         <div className="absolute top-12 left-6 right-6 h-1 -z-0">
-                            {/* Background Line */}
                             <div className="absolute top-0 left-0 w-full h-1 bg-gray-700"></div>
-                            
-                            {/* Active Progress Line */}
                             <div
                                 className={`absolute top-0 left-0 h-1 bg-blue-600 transition-all duration-700 ease-out ${
                                     booking.status === 'pending' ? 'w-0' :
@@ -377,7 +441,6 @@ export default function BookingTrackingPage() {
                         </div>
                     </div>
 
-                    {/* Status Timestamps */}
                     {statusUpdateTime && (
                         <div className="px-6 pb-6">
                             <div className="text-center text-sm text-gray-500">
@@ -448,29 +511,50 @@ export default function BookingTrackingPage() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <button
-                        onClick={() => navigate('/')}
-                        className="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
-                    >
-                        ← Back to Home
-                    </button>
-                    <button
-                        onClick={loadBooking}
-                        disabled={isRefreshing}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                        {isRefreshing ? (
-                            <>
-                                <div className="animate-spin">⟳</div>
-                                Refreshing...
-                            </>
-                        ) : (
-                            <>
-                                Refresh Now
-                            </>
-                        )}
-                    </button>
+                <div className="flex flex-col gap-4">
+                    {/* Cancel Button (only show if booking can be cancelled) */}
+                    {canCancel && (
+                        <button
+                            onClick={() => setShowCancelConfirm(true)}
+                            disabled={isCancelling}
+                            className="w-full bg-red-600 hover:bg-red-700 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isCancelling ? (
+                                <>
+                                    <div className="animate-spin">⟳</div>
+                                    Cancelling...
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-xl">✕</span>
+                                    Cancel Booking
+                                </>
+                            )}
+                        </button>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <button
+                            onClick={() => navigate('/')}
+                            className="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+                        >
+                            ← Back to Home
+                        </button>
+                        <button
+                            onClick={loadBooking}
+                            disabled={isRefreshing}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {isRefreshing ? (
+                                <>
+                                    <div className="animate-spin">⟳</div>
+                                    Refreshing...
+                                </>
+                            ) : (
+                                'Refresh Now'
+                            )}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Live Indicator & Last Refresh */}
@@ -528,7 +612,6 @@ export default function BookingTrackingPage() {
                 </div>
             </div>
 
-            {/* Add CSS for fade-in animation */}
             <style jsx>{`
                 @keyframes fade-in {
                     from { opacity: 0; transform: translateY(-10px); }

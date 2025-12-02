@@ -181,6 +181,71 @@ export class BookingService {
     }
 
     /**
+     * Cancel a booking
+     * @param {string} bookingNumber - The booking number to cancel
+     * @returns {Promise<Object>} Result object with success status and data
+     */
+    static async cancelBooking(bookingNumber) {
+        try {
+            console.log('🔄 Attempting to cancel booking:', bookingNumber);
+            
+            // First, check if booking exists and can be cancelled
+            const { data: existingBooking, error: fetchError } = await supabase
+                .from('bookings')
+                .select('*')
+                .eq('booking_number', bookingNumber)
+                .single();
+
+            if (fetchError) {
+                throw new Error('Booking not found');
+            }
+
+            // Check if booking is already cancelled or completed
+            if (existingBooking.status === 'cancelled') {
+                throw new Error('Booking is already cancelled');
+            }
+
+            if (existingBooking.status === 'completed') {
+                throw new Error('Cannot cancel a completed booking');
+            }
+
+            // Only allow cancellation for pending or confirmed statuses
+            if (!['pending', 'confirmed'].includes(existingBooking.status)) {
+                throw new Error(`Cannot cancel booking with status: ${existingBooking.status}`);
+            }
+
+            // Update booking status to cancelled
+            const { data, error } = await supabase
+                .from('bookings')
+                .update({ 
+                    status: 'cancelled',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('booking_number', bookingNumber)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            console.log('✅ Booking cancelled successfully:', data);
+            
+            return {
+                success: true,
+                data: data,
+                message: 'Booking cancelled successfully'
+            };
+        } catch (error) {
+            console.error('❌ Error cancelling booking:', error);
+            
+            return {
+                success: false,
+                message: error.message || 'Failed to cancel booking',
+                data: null
+            };
+        }
+    }
+
+    /**
      * Delete a booking (soft delete by updating status)
      * @param {string} bookingNumber - The booking number to delete
      * @returns {Promise<boolean>} Success status
