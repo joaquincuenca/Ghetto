@@ -95,7 +95,13 @@ export default function BookingTrackingPage() {
                 throw new Error('Booking not found');
             }
             
-            setBooking(data);
+            // Ensure user_details exists
+            const bookingWithDefaults = {
+                ...data,
+                user_details: data.user_details || {}
+            };
+            
+            setBooking(bookingWithDefaults);
             setError(null);
         } catch (err) {
             console.error('Error loading booking:', err);
@@ -227,6 +233,18 @@ export default function BookingTrackingPage() {
         loadBooking();
     };
 
+    // Format user details for display
+    const formatUserDetails = (userDetails) => {
+        if (!userDetails) return null;
+        
+        return {
+            name: userDetails.fullName || userDetails.name || 'Not provided',
+            contact: userDetails.contactNumber || userDetails.phone || userDetails.contact || 'Not provided'
+        };
+    };
+
+    const userDetails = formatUserDetails(booking?.user_details);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -292,6 +310,17 @@ export default function BookingTrackingPage() {
                                 Are you sure you want to cancel booking #{bookingNumber}? 
                                 This action cannot be undone.
                             </p>
+                            
+                            {userDetails && (
+                                <div className="mt-4 p-3 bg-gray-900/50 rounded-lg">
+                                    <p className="text-sm text-gray-300 mb-1">
+                                        Customer: <span className="font-semibold">{userDetails.name}</span>
+                                    </p>
+                                    <p className="text-sm text-gray-300">
+                                        Contact: <span className="font-semibold">{userDetails.contact}</span>
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         
                         <div className="flex gap-3">
@@ -492,6 +521,29 @@ export default function BookingTrackingPage() {
                             </div>
                         </div>
 
+                        {/* User Details Section */}
+                        {userDetails && (
+                            <div className="bg-gray-900 p-4 rounded-lg">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-xl">👤</span>
+                                    <h4 className="text-sm font-semibold text-gray-300">Customer Details</h4>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-xs text-gray-400 mb-1">Full Name</p>
+                                        <p className="text-sm font-medium text-white">{userDetails.name}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400 mb-1">Contact Number</p>
+                                        <p className="text-sm font-medium text-white">{userDetails.contact}</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-3">
+                                    This information was provided during booking and is used for ride coordination.
+                                </p>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-gray-900 p-4 rounded-lg">
                                 <p className="text-xs text-gray-400 mb-1">Distance</p>
@@ -505,7 +557,7 @@ export default function BookingTrackingPage() {
 
                         <div className="bg-gray-900 p-4 rounded-lg">
                             <p className="text-xs text-gray-400 mb-1">Booked On</p>
-                            <p className="text-sm">{new Date(booking.timestamp).toLocaleString()}</p>
+                            <p className="text-sm">{new Date(booking.timestamp || booking.created_at).toLocaleString()}</p>
                         </div>
                     </div>
                 </div>
