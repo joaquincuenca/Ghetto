@@ -17,65 +17,67 @@ export const useBooking = () => {
 
     const handlePickupSelect = useCallback(async (latlng, name = null) => {
         try {
-        setLoading(true);
-        const { location, routeData } = await viewModel.handleLocationSelect(
-            latlng, 
-            name, 
-            true, 
-            pickup, 
-            dropoff
-        );
+            setLoading(true);
+            const { location, routeData } = await viewModel.handleLocationSelect(
+                latlng, 
+                name, 
+                true, 
+                pickup, 
+                dropoff
+            );
 
-        setPickup(location.toLatLng());
-        setPickupText(location.displayName);
+            // ✅ FIXED: Store the full Location object, not just lat/lng
+            setPickup(location);
+            setPickupText(location.displayName);
 
-        if (routeData) {
-            setRouteCoordinates(routeData.primary.coordinates);
-            setDistance(routeData.primary.distance);
-            setDuration(routeData.primary.duration);
-            setAlternativeRoutes(routeData.alternatives);
-        }
+            if (routeData) {
+                setRouteCoordinates(routeData.primary.coordinates);
+                setDistance(routeData.primary.distance);
+                setDuration(routeData.primary.duration);
+                setAlternativeRoutes(routeData.alternatives);
+            }
         } catch (error) {
-        if (error.message === "OUT_OF_RANGE") {
-            setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
-            setPickup(null);
-            setPickupText("");
-            setRouteCoordinates([]);
-        }
+            if (error.message === "OUT_OF_RANGE") {
+                setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
+                setPickup(null);
+                setPickupText("");
+                setRouteCoordinates([]);
+            }
         } finally {
-        setLoading(false);
+            setLoading(false);
         }
     }, [pickup, dropoff]);
 
     const handleDropoffSelect = useCallback(async (latlng, name = null) => {
         try {
-        setLoading(true);
-        const { location, routeData } = await viewModel.handleLocationSelect(
-            latlng, 
-            name, 
-            false, 
-            pickup, 
-            dropoff
-        );
+            setLoading(true);
+            const { location, routeData } = await viewModel.handleLocationSelect(
+                latlng, 
+                name, 
+                false, 
+                pickup, 
+                dropoff
+            );
 
-        setDropoff(location.toLatLng());
-        setDropoffText(location.displayName);
+            // ✅ FIXED: Store the full Location object, not just lat/lng
+            setDropoff(location);
+            setDropoffText(location.displayName);
 
-        if (routeData) {
-            setRouteCoordinates(routeData.primary.coordinates);
-            setDistance(routeData.primary.distance);
-            setDuration(routeData.primary.duration);
-            setAlternativeRoutes(routeData.alternatives);
-        }
+            if (routeData) {
+                setRouteCoordinates(routeData.primary.coordinates);
+                setDistance(routeData.primary.distance);
+                setDuration(routeData.primary.duration);
+                setAlternativeRoutes(routeData.alternatives);
+            }
         } catch (error) {
-        if (error.message === "OUT_OF_RANGE") {
-            setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
-            setDropoff(null);
-            setDropoffText("");
-            setRouteCoordinates([]);
-        }
+            if (error.message === "OUT_OF_RANGE") {
+                setErrorMessage("🚫 Out of Range! Service is only available within Camarines Norte, Bicol.");
+                setDropoff(null);
+                setDropoffText("");
+                setRouteCoordinates([]);
+            }
         } finally {
-        setLoading(false);
+            setLoading(false);
         }
     }, [pickup, dropoff]);
 
