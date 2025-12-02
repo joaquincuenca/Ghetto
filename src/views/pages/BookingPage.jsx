@@ -75,8 +75,6 @@ export default function BookingPage() {
 
     function handleBookNow() {
         try {
-            console.log('Creating booking with:', { pickup, dropoff, distance, duration, acceptedTerms });
-            
             // Check if terms are accepted
             if (!acceptedTerms) {
                 throw new Error("TERMS_NOT_ACCEPTED");
@@ -98,8 +96,6 @@ export default function BookingPage() {
                 timestamp: new Date().toISOString(), // Always use ISO string
                 status: 'pending'
             };
-            
-            console.log('Booking created:', booking);
             setCurrentBooking(booking);
             setShowReceipt(true);
         } catch (error) {
