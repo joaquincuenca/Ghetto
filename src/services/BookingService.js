@@ -13,6 +13,13 @@ export class BookingService {
      * @param {Booking} booking - The booking object to save
      * @returns {Promise<Object>} The saved booking data
      */
+
+    static subscribeToNewBookings(callback) {
+        // For real-time implementation, you would connect to WebSocket here
+        // This is a placeholder for polling implementation
+        console.log('Subscribed to new bookings');
+    }
+
     static async saveBooking(booking) {
         try {
             // Debug: Log the booking object
