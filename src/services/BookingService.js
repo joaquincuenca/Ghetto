@@ -138,6 +138,8 @@ export class BookingService {
 
     static async updateBookingStatus(bookingNumber, status) {
         try {
+            console.log('🔄 Service: Updating booking status', { bookingNumber, status });
+            
             const { data, error } = await supabase
                 .from('bookings')
                 .update({
@@ -148,17 +150,26 @@ export class BookingService {
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Service: Update error', error);
+                throw error;
+            }
 
+            console.log('✅ Service: Update successful', data);
+            
+            // Return with proper user_details structure
             return {
                 ...data,
                 user_details: {
                     fullName: data.user_name || '',
-                    contactNumber: data.user_phone || ''
+                    contactNumber: data.user_phone || '',
+                    name: data.user_name || '', // Add this for compatibility
+                    phone: data.user_phone || '' // Add this for compatibility
                 }
             };
         } catch (error) {
-            throw new Error('Failed to update booking status');
+            console.error('❌ Service: Failed to update booking status', error);
+            throw new Error('Failed to update booking status: ' + error.message);
         }
     }
 

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookingService } from '../../services/BookingService';
 import NotificationSound from '../../assets/notification.mp3';
+import { createClient } from '@supabase/supabase-js';
 
 export default function AdminDashboard() {
     const navigate = useNavigate();
@@ -37,6 +38,15 @@ export default function AdminDashboard() {
     const dropdownRef = useRef(null);
 
     const adminUsername = localStorage.getItem('adminUsername') || 'Admin';
+
+    const [chatMessages, setChatMessages] = useState([]);
+    const [newChatMessage, setNewChatMessage] = useState('');
+    const [isSendingMessage, setIsSendingMessage] = useState(false);
+    const [chatLoading, setChatLoading] = useState(false);
+    const [activeChatBooking, setActiveChatBooking] = useState(null);
+
+    const chatAudioRef = useRef(null);
+    const chatMessagesEndRef = useRef(null);
     
 
     const filteredBookings = useMemo(() => {
@@ -51,6 +61,177 @@ export default function AdminDashboard() {
         return matchesFilter && matchesSearch;
     });
 }, [bookings, filter, searchTerm]);
+
+    const supabase = createClient(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_ANON_KEY
+    );
+
+
+
+    useEffect(() => {
+        if (showBookingDetails && selectedBooking) {
+            loadChatMessages(selectedBooking.booking_number);
+            subscribeToChatMessages(selectedBooking.booking_number);
+        }
+        
+        return () => {
+            // Cleanup chat subscription when modal closes
+            if (activeChatBooking) {
+                supabase.removeChannel(`chat-${activeChatBooking}`);
+            }
+        };
+    }, [showBookingDetails, selectedBooking]);
+
+    // Add this for auto-scroll:
+    useEffect(() => {
+        scrollChatToBottom();
+    }, [chatMessages]);
+
+const scrollChatToBottom = () => {
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+};
+
+const loadChatMessages = async (bookingNumber) => {
+    if (!bookingNumber) return;
+    
+    try {
+        setChatLoading(true);
+        const { data, error } = await supabase
+            .from('booking_messages')
+            .select('*')
+            .eq('booking_number', bookingNumber)
+            .order('created_at', { ascending: true });
+        
+        if (error) throw error;
+        
+        setChatMessages(data || []);
+        setActiveChatBooking(bookingNumber);
+        
+        // Mark messages as read
+        markChatMessagesAsRead(data);
+        
+    } catch (err) {
+        console.error('Error loading chat messages:', err);
+    } finally {
+        setChatLoading(false);
+    }
+};
+
+const subscribeToChatMessages = (bookingNumber) => {
+    if (!bookingNumber) return;
+    
+    try {
+        const channel = supabase
+            .channel(`chat-${bookingNumber}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'booking_messages',
+                    filter: `booking_number=eq.${bookingNumber}`
+                },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        setChatMessages(prev => [...prev, payload.new]);
+                        
+                        // Play sound for new messages from client
+                        if (payload.new.sender_role !== 'admin') {
+                            playChatSound();
+                        }
+                        
+                        // Mark as read if admin
+                        if (showBookingDetails) {
+                            markMessageAsRead(payload.new.id);
+                        }
+                    }
+                }
+            )
+            .subscribe();
+        
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    } catch (err) {
+        console.error('Error subscribing to messages:', err);
+    }
+};
+
+const sendChatMessage = async () => {
+    if (!newChatMessage.trim() || !selectedBooking?.booking_number) return;
+    
+    try {
+        setIsSendingMessage(true);
+        
+        const messageData = {
+            booking_number: selectedBooking.booking_number,
+            message: newChatMessage.trim(),
+            sender_role: 'admin',
+            sender_id: adminUsername,
+            is_read: false,
+            created_at: new Date().toISOString()
+        };
+        
+        const { error } = await supabase
+            .from('booking_messages')
+            .insert([messageData]);
+        
+        if (error) throw error;
+        
+        setNewChatMessage('');
+        scrollChatToBottom();
+        
+    } catch (err) {
+        console.error('Error sending message:', err);
+        alert('Failed to send message. Please try again.');
+    } finally {
+        setIsSendingMessage(false);
+    }
+};
+
+const playChatSound = () => {
+    if (chatAudioRef.current) {
+        chatAudioRef.current.currentTime = 0;
+        chatAudioRef.current.play().catch(e => console.log("Audio play failed:", e));
+    }
+};
+
+const markChatMessagesAsRead = async (messages) => {
+    if (!messages || messages.length === 0) return;
+    
+    try {
+        const unreadMessageIds = messages
+            .filter(msg => !msg.is_read && msg.sender_role !== 'admin')
+            .map(msg => msg.id);
+        
+        if (unreadMessageIds.length > 0) {
+            const { error } = await supabase
+                .from('booking_messages')
+                .update({ is_read: true })
+                .in('id', unreadMessageIds);
+            
+            if (error) throw error;
+        }
+    } catch (err) {
+        console.error('Error marking messages as read:', err);
+    }
+};
+
+const markMessageAsRead = async (messageId) => {
+    try {
+        const { error } = await supabase
+            .from('booking_messages')
+            .update({ is_read: true })
+            .eq('id', messageId);
+        
+        if (error) throw error;
+    } catch (err) {
+        console.error('Error marking message as read:', err);
+    }
+};
+
+
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -73,9 +254,13 @@ export default function AdminDashboard() {
             setNotificationSettings(JSON.parse(savedSettings));
         }
 
-        // Load notification sound
+        // Load notification sounds
         audioRef.current = new Audio(NotificationSound);
         audioRef.current.volume = 0.5;
+        
+        // ADD THIS LINE for chat audio:
+        chatAudioRef.current = new Audio('/message-notification.mp3');
+        chatAudioRef.current.volume = 0.3;
 
         // Start polling for new bookings
         if (notificationSettings.autoRefresh) {
@@ -89,7 +274,6 @@ export default function AdminDashboard() {
             }
         };
     }, []);
-
     useEffect(() => {
         // Save notification settings to localStorage
         localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
@@ -460,130 +644,227 @@ export default function AdminDashboard() {
                 </div>
             )}
 
-            {/* Booking Details Modal */}
+
             {showBookingDetails && selectedBooking && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-                    <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                    <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold">Booking Details</h3>
+                            <h3 className="text-xl font-bold">Booking Details & Chat</h3>
                             <button
-                                onClick={() => setShowBookingDetails(false)}
+                                onClick={() => {
+                                    setShowBookingDetails(false);
+                                    setChatMessages([]);
+                                }}
                                 className="text-gray-400 hover:text-white text-2xl"
                             >
                                 ✕
                             </button>
                         </div>
                         
-                        <div className="space-y-4">
-                            <div className="bg-gray-900 p-4 rounded-lg">
-                                <p className="text-xs text-gray-400 mb-1">Booking Number</p>
-                                <p className="font-mono text-blue-400 font-bold text-lg">{selectedBooking.booking_number}</p>
-                                <span className={`px-2 py-1 rounded-full text-xs font-semibold mt-2 inline-block ${getStatusColor(selectedBooking.status)}`}>
-                                    {selectedBooking.status}
-                                </span>
-                            </div>
-
-                            <div className="grid gap-3">
+                        <div className="flex flex-col lg:flex-row gap-6 flex-1 overflow-hidden">
+                            {/* Left Column - Booking Details */}
+                            <div className="lg:w-1/2 flex flex-col space-y-4 overflow-y-auto">
                                 <div className="bg-gray-900 p-4 rounded-lg">
-                                    <div className="flex items-start gap-3">
-                                        <span className="text-xl">📍</span>
-                                        <div>
-                                            <p className="text-xs text-gray-400 mb-1">Pickup Location</p>
-                                            <p className="text-sm">{selectedBooking.pickup_location}</p>
+                                    <p className="text-xs text-gray-400 mb-1">Booking Number</p>
+                                    <p className="font-mono text-blue-400 font-bold text-lg">{selectedBooking.booking_number}</p>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold mt-2 inline-block ${getStatusColor(selectedBooking.status)}`}>
+                                        {selectedBooking.status}
+                                    </span>
+                                </div>
+
+                                <div className="grid gap-3">
+                                    <div className="bg-gray-900 p-4 rounded-lg">
+                                        <div className="flex items-start gap-3">
+                                            <span className="text-xl">📍</span>
+                                            <div>
+                                                <p className="text-xs text-gray-400 mb-1">Pickup Location</p>
+                                                <p className="text-sm">{selectedBooking.pickup_location}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-gray-900 p-4 rounded-lg">
+                                        <div className="flex items-start gap-3">
+                                            <span className="text-xl">🚩</span>
+                                            <div>
+                                                <p className="text-xs text-gray-400 mb-1">Drop-off Location</p>
+                                                <p className="text-sm">{selectedBooking.dropoff_location}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
+                                {/* Customer Details */}
                                 <div className="bg-gray-900 p-4 rounded-lg">
-                                    <div className="flex items-start gap-3">
-                                        <span className="text-xl">🚩</span>
-                                        <div>
-                                            <p className="text-xs text-gray-400 mb-1">Drop-off Location</p>
-                                            <p className="text-sm">{selectedBooking.dropoff_location}</p>
-                                        </div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-xl">👤</span>
+                                        <h4 className="text-sm font-semibold text-gray-300">Customer Details</h4>
                                     </div>
+                                    {selectedBooking.user_details ? (
+                                        <div className="space-y-2">
+                                            <div>
+                                                <p className="text-xs text-gray-400 mb-1">Full Name</p>
+                                                <p className="text-sm font-medium">
+                                                    {selectedBooking.user_details.fullName || selectedBooking.user_details.name || 'Not provided'}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-400 mb-1">Contact Number</p>
+                                                <p className="text-sm font-medium">
+                                                    {selectedBooking.user_details.contactNumber || selectedBooking.user_details.phone || 'Not provided'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500 text-sm">No customer details available</p>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-gray-900 p-4 rounded-lg">
+                                        <p className="text-xs text-gray-400 mb-1">Distance</p>
+                                        <p className="font-semibold text-lg">{selectedBooking.distance?.toFixed(2) || '0'} km</p>
+                                    </div>
+                                    <div className="bg-gray-900 p-4 rounded-lg">
+                                        <p className="text-xs text-gray-400 mb-1">Fare</p>
+                                        <p className="font-semibold text-blue-400 text-lg">₱{selectedBooking.fare?.toFixed(2) || '0'}</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gray-900 p-4 rounded-lg">
+                                    <p className="text-xs text-gray-400 mb-1">Booked On</p>
+                                    <p className="text-sm">{new Date(selectedBooking.timestamp || selectedBooking.created_at).toLocaleString()}</p>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="grid grid-cols-2 gap-3 pt-2">
+                                    {selectedBooking.status === 'pending' && (
+                                        <>
+                                            <button
+                                                onClick={() => {
+                                                    handleStatusUpdate(selectedBooking.booking_number, 'confirmed');
+                                                    setShowBookingDetails(false);
+                                                }}
+                                                className="bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-semibold transition-colors"
+                                            >
+                                                ✓ Accept Booking
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    handleStatusUpdate(selectedBooking.booking_number, 'cancelled');
+                                                    setShowBookingDetails(false);
+                                                }}
+                                                className="bg-red-600 hover:bg-red-700 py-3 rounded-xl font-semibold transition-colors"
+                                            >
+                                                ✗ Cancel
+                                            </button>
+                                        </>
+                                    )}
+                                    
+                                    {selectedBooking.status === 'confirmed' && (
+                                        <button
+                                            onClick={() => {
+                                                handleStatusUpdate(selectedBooking.booking_number, 'completed');
+                                                setShowBookingDetails(false);
+                                            }}
+                                            className="col-span-2 bg-green-600 hover:bg-green-700 py-3 rounded-xl font-semibold transition-colors"
+                                        >
+                                            ✓ Mark as Completed
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Customer Details */}
-                            <div className="bg-gray-900 p-4 rounded-lg">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <span className="text-xl">👤</span>
-                                    <h4 className="text-sm font-semibold text-gray-300">Customer Details</h4>
+                            {/* Right Column - Chat */}
+                            <div className="lg:w-1/2 flex flex-col border-l border-gray-700 lg:pl-6">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <span className="text-xl">💬</span>
+                                    <h4 className="text-lg font-bold">Chat with Customer</h4>
                                 </div>
-                                {selectedBooking.user_details ? (
-                                    <div className="space-y-2">
-                                        <div>
-                                            <p className="text-xs text-gray-400 mb-1">Full Name</p>
-                                            <p className="text-sm font-medium">
-                                                {selectedBooking.user_details.fullName || selectedBooking.user_details.name || 'Not provided'}
+                                
+                                {/* Messages Container */}
+                                <div className="flex-1 overflow-y-auto bg-gray-900 rounded-lg p-4 mb-4">
+                                    {chatLoading ? (
+                                        <div className="text-center py-8">
+                                            <div className="animate-spin text-3xl mb-2">⏳</div>
+                                            <p className="text-gray-400">Loading messages...</p>
+                                        </div>
+                                    ) : chatMessages.length === 0 ? (
+                                        <div className="text-center py-8">
+                                            <div className="text-4xl mb-3">💬</div>
+                                            <p className="text-gray-400">No messages yet</p>
+                                            <p className="text-gray-500 text-sm mt-1">
+                                                Start a conversation with the customer
                                             </p>
                                         </div>
-                                        <div>
-                                            <p className="text-xs text-gray-400 mb-1">Contact Number</p>
-                                            <p className="text-sm font-medium">
-                                                {selectedBooking.user_details.contactNumber || selectedBooking.user_details.phone || 'Not provided'}
-                                            </p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {chatMessages.map((message) => (
+                                                <div
+                                                    key={message.id}
+                                                    className={`flex ${message.sender_role === 'admin' ? 'justify-end' : 'justify-start'}`}
+                                                >
+                                                    <div
+                                                        className={`max-w-[80%] rounded-2xl p-3 ${message.sender_role === 'admin'
+                                                            ? 'bg-blue-600 rounded-br-none'
+                                                            : 'bg-gray-700 rounded-bl-none'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-xs font-semibold">
+                                                                {message.sender_role === 'admin' ? 'You' : 'Customer'}
+                                                            </span>
+                                                            {!message.is_read && message.sender_role === 'admin' && (
+                                                                <span className="text-xs text-gray-300">✓</span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-sm break-words">{message.message}</p>
+                                                        <p className="text-xs text-gray-300 mt-2 opacity-70">
+                                                            {new Date(message.created_at).toLocaleTimeString([], { 
+                                                                hour: '2-digit', 
+                                                                minute: '2-digit' 
+                                                            })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div ref={chatMessagesEndRef} />
                                         </div>
+                                    )}
+                                </div>
+
+                                {/* Message Input */}
+                                <div className="border-t border-gray-700 pt-4">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newChatMessage}
+                                            onChange={(e) => setNewChatMessage(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendChatMessage()}
+                                            placeholder="Type your message to customer..."
+                                            className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            disabled={isSendingMessage}
+                                        />
+                                        <button
+                                            onClick={sendChatMessage}
+                                            disabled={isSendingMessage || !newChatMessage.trim()}
+                                            className="bg-blue-600 hover:bg-blue-700 px-6 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        >
+                                            {isSendingMessage ? (
+                                                <>
+                                                    <div className="animate-spin">⟳</div>
+                                                    Sending...
+                                                </>
+                                            ) : (
+                                                'Send'
+                                            )}
+                                        </button>
                                     </div>
-                                ) : (
-                                    <p className="text-gray-500 text-sm">No customer details available</p>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-gray-900 p-4 rounded-lg">
-                                    <p className="text-xs text-gray-400 mb-1">Distance</p>
-                                    <p className="font-semibold text-lg">{selectedBooking.distance?.toFixed(2) || '0'} km</p>
-                                </div>
-                                <div className="bg-gray-900 p-4 rounded-lg">
-                                    <p className="text-xs text-gray-400 mb-1">Fare</p>
-                                    <p className="font-semibold text-blue-400 text-lg">₱{selectedBooking.fare?.toFixed(2) || '0'}</p>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Chat is associated with Booking #{selectedBooking.booking_number}
+                                    </p>
                                 </div>
                             </div>
-
-                            <div className="bg-gray-900 p-4 rounded-lg">
-                                <p className="text-xs text-gray-400 mb-1">Booked On</p>
-                                <p className="text-sm">{new Date(selectedBooking.timestamp || selectedBooking.created_at).toLocaleString()}</p>
-                            </div>
-
-                            {/* Action Buttons */}
-                            {selectedBooking.status === 'pending' && (
-                                <div className="flex gap-3 pt-4">
-                                    <button
-                                        onClick={() => {
-                                            handleStatusUpdate(selectedBooking.booking_number, 'confirmed');
-                                            setShowBookingDetails(false);
-                                        }}
-                                        className="flex-1 bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-semibold transition-colors"
-                                    >
-                                        ✓ Accept Booking
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            handleStatusUpdate(selectedBooking.booking_number, 'cancelled');
-                                            setShowBookingDetails(false);
-                                        }}
-                                        className="flex-1 bg-red-600 hover:bg-red-700 py-3 rounded-xl font-semibold transition-colors"
-                                    >
-                                        ✗ Cancel
-                                    </button>
-                                </div>
-                            )}
-                            
-                            {selectedBooking.status === 'confirmed' && (
-                                <div className="pt-4">
-                                    <button
-                                        onClick={() => {
-                                            handleStatusUpdate(selectedBooking.booking_number, 'completed');
-                                            setShowBookingDetails(false);
-                                        }}
-                                        className="w-full bg-green-600 hover:bg-green-700 py-3 rounded-xl font-semibold transition-colors"
-                                    >
-                                        ✓ Mark as Completed
-                                    </button>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -928,7 +1209,7 @@ export default function AdminDashboard() {
                 {/* Bookings Table - Now horizontally scrollable on mobile */}
                 <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
                     <div className="overflow-x-auto">
-                        <div className="min-w-[1100px]"> {/* Increased minimum width for checkbox column */}
+                        <div className="min-w-[1200px]"> {/* Increased from 1100px to 1200px */}
                             <table className="w-full">
                                 <thead className="bg-gray-700">
                                     <tr>
@@ -952,12 +1233,13 @@ export default function AdminDashboard() {
                                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Status</th>
                                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Date</th>
                                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Actions</th>
+                                        <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Chat</th> {/* CORRECT - inside tr */}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-700">
                                     {filteredBookings.length === 0 ? (
                                         <tr>
-                                            <td colSpan="10" className="px-4 py-8 text-center text-gray-400 text-sm md:text-base">
+                                            <td colSpan="11" className="px-4 py-8 text-center text-gray-400 text-sm md:text-base">
                                                 No bookings found
                                             </td>
                                         </tr>
@@ -1050,6 +1332,15 @@ export default function AdminDashboard() {
                                                             )}
                                                         </div>
                                                     </td>
+                                                    <td className="px-3 py-2 md:px-4 md:py-3 whitespace-nowrap">
+                                                    <button
+                                                        onClick={() => viewBookingDetails(booking)}
+                                                        className="px-2 py-1 bg-purple-600 hover:bg-purple-700 rounded text-xs font-semibold transition-colors"
+                                                        title="Open Chat"
+                                                    >
+                                                        💬 Chat
+                                                    </button>
+                                                </td>
                                                 </tr>
                                             );
                                         })
