@@ -454,9 +454,9 @@ export class BookingService {
                 throw new Error('Booking not found');
             }
 
-            if (existingBooking.status !== 'confirmed') {
-                console.error('❌ Service: Booking not in confirmed status', existingBooking.status);
-                throw new Error(`Cannot assign booking with status: ${existingBooking.status}. Must be 'confirmed'.`);
+            if (!['confirmed', 'assigned'].includes(existingBooking.status)) {
+                console.error('❌ Service: Booking not in valid status', existingBooking.status);
+                throw new Error(`Cannot assign booking with status: ${existingBooking.status}. Must be 'confirmed' or 'assigned'.`);
             }
 
             // Update booking status to 'assigned' and set rider ID
