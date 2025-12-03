@@ -4,8 +4,6 @@ import { supabase } from '../utils/supabaseClient';
 export class RiderBookingService {
     static async getRiderAssignedBookings(riderId) {
         try {
-            console.log('🛵 RiderService: Fetching bookings for rider:', riderId);
-            
             const { data, error } = await supabase
                 .from('bookings')
                 .select('*')
@@ -16,8 +14,6 @@ export class RiderBookingService {
                 console.error('❌ RiderService: Error fetching bookings:', error);
                 throw error;
             }
-
-            console.log('✅ RiderService: Found bookings:', data?.length || 0);
             
             return data.map(booking => ({
                 ...booking,
@@ -36,8 +32,6 @@ export class RiderBookingService {
 
     static async getRiderStats(riderId) {
         try {
-            console.log('📊 RiderService: Getting stats for rider:', riderId);
-            
             const { data: bookings, error } = await supabase
                 .from('bookings')
                 .select('status, created_at')
@@ -72,8 +66,6 @@ export class RiderBookingService {
                 thisMonth,
                 completionRate
             };
-
-            console.log('📊 RiderService: Rider stats:', stats);
             return stats;
         } catch (error) {
             console.error('❌ RiderService: Failed to get rider stats:', error);
@@ -90,11 +82,6 @@ export class RiderBookingService {
 
     static async updateBookingStatus(bookingNumber, status) {
     try {
-        console.log('🔄 ==== RiderService.updateBookingStatus START ====');
-        console.log('📤 Input:', { bookingNumber, status });
-        
-        // SIMPLE UPDATE - try without handling assignments first
-        console.log('📋 Simple update attempt...');
         const { data, error } = await supabase
             .from('bookings')
             .update({ 
@@ -110,9 +97,7 @@ export class RiderBookingService {
             
             // If it's a foreign key error, try to handle assignments
             if (error.message.includes('foreign key constraint')) {
-                console.log('🔗 Foreign key constraint detected, trying to handle assignments...');
                 
-                // Try to delete assignments first (if that's allowed)
                 const { error: deleteError } = await supabase
                     .from('rider_assignments')
                     .delete()
@@ -126,8 +111,6 @@ export class RiderBookingService {
                     };
                 }
                 
-                // Try update again
-                console.log('🔄 Retrying booking update after deleting assignments...');
                 const { data: retryData, error: retryError } = await supabase
                     .from('bookings')
                     .update({ 
@@ -154,12 +137,6 @@ export class RiderBookingService {
                 };
             }
         }
-
-        console.log('✅ Update successful:', {
-            id: data.id,
-            newStatus: data.status,
-            bookingNumber: data.booking_number
-        });
         
         return {
             success: true,
@@ -184,16 +161,11 @@ export class RiderBookingService {
 
     static async startRide(bookingNumber, riderId) {
         try {
-            console.log('🏍️ RiderService: startRide called', { bookingNumber, riderId });
-            
-            // First update booking status to 'in_progress'
             const updateResult = await this.updateBookingStatus(bookingNumber, 'in_progress');
             
             if (!updateResult.success) {
                 return updateResult;
             }
-
-            // Try to update rider assignment if exists
             try {
                 const { error } = await supabase
                     .from('rider_assignments')
@@ -211,8 +183,6 @@ export class RiderBookingService {
             } catch (assignError) {
                 console.warn('⚠️ RiderService: Rider assignment update failed:', assignError);
             }
-
-            console.log('✅ RiderService: Ride started successfully');
             return {
                 success: true,
                 message: 'Ride started successfully',
@@ -229,8 +199,6 @@ export class RiderBookingService {
 
     static async updateRiderLocation(riderId, latitude, longitude) {
         try {
-            console.log('📍 RiderService: Updating rider location', { riderId, latitude, longitude });
-            
             const { error } = await supabase
                 .from('rider_locations')
                 .insert({
@@ -244,8 +212,6 @@ export class RiderBookingService {
                 console.error('❌ RiderService: Location update error:', error);
                 throw error;
             }
-
-            console.log('✅ RiderService: Location updated successfully');
             return { success: true };
         } catch (error) {
             console.error('❌ RiderService: Failed to update rider location:', error);

@@ -214,7 +214,6 @@ export default function RiderDashboard() {
                         <td className="px-4 py-3">
                             <button
                             onClick={() => {
-                                console.log('View details clicked for:', booking.booking_number); // Debug log
                                 viewBookingDetails(booking);
                             }}
                             className="font-mono text-sm text-yellow-400 hover:text-yellow-300 hover:underline"
@@ -255,7 +254,6 @@ export default function RiderDashboard() {
                             <div className="flex flex-col gap-1">
                             <button
                                 onClick={() => {
-                                    console.log('View Details button clicked for:', booking.booking_number); // Debug log
                                     viewBookingDetails(booking);
                                 }}
                                 className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs font-semibold transition-colors"
