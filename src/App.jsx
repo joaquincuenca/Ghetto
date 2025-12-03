@@ -5,6 +5,8 @@ import AdminLoginPage from "./views/pages/AdminLoginPage";
 import AdminDashboard from "./views/pages/AdminDashboard";
 import BookingTrackingPage from "./views/pages/BookingTrackingPage";
 import { ProtectedRoute } from "./views/components/ProtectedRoute";
+import RiderLogin from './views/pages/rider/RiderLogin';
+import RiderDashboard from './views/pages/rider/RiderDashboard';
 
 function App() {
   return (
@@ -14,6 +16,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/book" element={<BookingPage />} />
         <Route path="/track/:bookingNumber" element={<BookingTrackingPage />} />
+        <Route path="/rider/login" element={<RiderLogin />} />
+        <Route path="/rider/dashboard" element={<RiderDashboard />} />
         
         {/* Admin Routes */}
         <Route path="/admin/login" element={<AdminLoginPage />} />
