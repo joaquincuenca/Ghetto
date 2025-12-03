@@ -1,3 +1,5 @@
+import { FaMotorcycle } from 'react-icons/fa';
+
 export default function BookingTable({
     bookings,
     selectedBookings,
@@ -6,13 +8,14 @@ export default function BookingTable({
     isSelectAll,
     onViewDetails,
     onStatusUpdate,
+    onAssignRider, // ADD THIS NEW PROP
     getStatusColor,
     formatUserDetails
     }) {
     if (bookings.length === 0) {
         return (
         <tr>
-            <td colSpan="11" className="px-4 py-8 text-center text-gray-400 text-sm md:text-base">
+            <td colSpan="12" className="px-4 py-8 text-center text-gray-400 text-sm md:text-base">
             No bookings found
             </td>
         </tr>
@@ -68,6 +71,17 @@ export default function BookingTable({
                 {booking.status}
             </span>
             </td>
+            {/* ADD RIDER COLUMN */}
+            <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm whitespace-nowrap">
+            {booking.status === 'assigned' && booking.assigned_rider_id ? (
+                <div className="flex items-center gap-1">
+                <FaMotorcycle className="text-yellow-400 text-xs" />
+                <span className="text-yellow-400 font-medium">Rider #{booking.assigned_rider_id}</span>
+                </div>
+            ) : (
+                <span className="text-gray-500">Not assigned</span>
+            )}
+            </td>
             <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm text-gray-400 whitespace-nowrap">
             {new Date(booking.timestamp || booking.created_at).toLocaleDateString()}
             <br className="sm:hidden" />
@@ -82,6 +96,29 @@ export default function BookingTable({
                 >
                 View Details
                 </button>
+                
+                {/* ASSIGN RIDER BUTTON FOR CONFIRMED BOOKINGS */}
+                {booking.status === 'confirmed' && (
+                <button
+                    onClick={() => onAssignRider(booking)}
+                    className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-xs font-semibold transition-colors whitespace-nowrap flex items-center gap-1 justify-center"
+                >
+                    <FaMotorcycle className="text-xs" />
+                    Assign Rider
+                </button>
+                )}
+                
+                {/* CHANGE RIDER BUTTON FOR ASSIGNED BOOKINGS */}
+                {booking.status === 'assigned' && booking.assigned_rider_id && (
+                <button
+                    onClick={() => onAssignRider(booking)}
+                    className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 rounded text-xs font-semibold transition-colors whitespace-nowrap flex items-center gap-1 justify-center"
+                >
+                    <FaMotorcycle className="text-xs" />
+                    Change Rider
+                </button>
+                )}
+                
                 {booking.status === 'pending' && (
                 <div className="flex gap-1">
                     <button
@@ -98,7 +135,8 @@ export default function BookingTable({
                     </button>
                 </div>
                 )}
-                {booking.status === 'confirmed' && (
+                {/* ONLY SHOW COMPLETE BUTTON IF NOT ASSIGNED TO RIDER */}
+                {booking.status === 'confirmed' && !booking.assigned_rider_id && (
                 <button
                     onClick={() => onStatusUpdate(booking.booking_number, 'completed')}
                     className="w-full px-2 py-1 bg-green-600 hover:bg-green-700 rounded text-xs font-semibold transition-colors whitespace-nowrap"

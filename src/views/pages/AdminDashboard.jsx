@@ -2,6 +2,7 @@ import { useAdminDashboard } from '../../viewmodels/AdminDashboardViewModel';
 import NotificationDropdown from '../components/admin/NotificationDropdown';
 import BookingDetailsModal from '../components/admin/BookingDetailsModal';
 import DeleteConfirmModal from '../components/admin/DeleteConfirmModal';
+import AssignRiderModal from '../components/admin/AssignRiderModal'; // ADD THIS IMPORT
 import BookingTable from '../components/admin/BookingTable';
 
 export default function AdminDashboard() {
@@ -30,6 +31,8 @@ export default function AdminDashboard() {
         adminUsername,
         filteredBookings,
         unreadCount,
+        showAssignRider, // ADD THIS
+        assignLoading, // ADD THIS
         
         // Refs
         dropdownRef,
@@ -45,6 +48,7 @@ export default function AdminDashboard() {
         setShowDeleteConfirm,
         setShowBookingDetails,
         setNewChatMessage,
+        setShowAssignRider, // ADD THIS
         
         // Functions
         loadBookings,
@@ -60,7 +64,10 @@ export default function AdminDashboard() {
         handleLogout,
         viewBookingDetails,
         sendChatMessage,
-        scrollChatToBottom
+        scrollChatToBottom,
+        assignBookingToRider, // ADD THIS
+        unassignBookingFromRider, // ADD THIS
+        openAssignRiderModal // ADD THIS
     } = useAdminDashboard();
 
     // Loading state
@@ -97,6 +104,16 @@ export default function AdminDashboard() {
             onConfirm={handleDeleteBookings}
             selectedCount={selectedBookings.length}
             deleteLoading={deleteLoading}
+        />
+
+        {/* ADD THIS - Assign Rider Modal */}
+        <AssignRiderModal
+            isOpen={showAssignRider}
+            onClose={() => setShowAssignRider(false)}
+            booking={selectedBooking}
+            onAssign={assignBookingToRider}
+            onUnassign={unassignBookingFromRider}
+            loading={assignLoading}
         />
 
         {/* Header */}
@@ -188,8 +205,8 @@ export default function AdminDashboard() {
             </div>
             )}
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">
+            {/* Stats Cards - ADD ASSIGNED STATUS */}
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4 mb-6">
             <div className="bg-gray-800 p-3 md:p-4 rounded-lg border border-gray-700">
                 <p className="text-gray-400 text-xs md:text-sm">Total Bookings</p>
                 <p className="text-xl md:text-3xl font-bold">{bookings.length}</p>
@@ -202,14 +219,18 @@ export default function AdminDashboard() {
                 <p className="text-blue-400 text-xs md:text-sm">Confirmed</p>
                 <p className="text-xl md:text-3xl font-bold text-blue-400">{getStatusCount('confirmed')}</p>
             </div>
+            <div className="bg-purple-900/30 p-3 md:p-4 rounded-lg border border-purple-700">
+                <p className="text-purple-400 text-xs md:text-sm">Assigned</p>
+                <p className="text-xl md:text-3xl font-bold text-purple-400">{getStatusCount('assigned')}</p>
+            </div>
             <div className="bg-green-900/30 p-3 md:p-4 rounded-lg border border-green-700">
                 <p className="text-green-400 text-xs md:text-sm">Completed</p>
                 <p className="text-xl md:text-3xl font-bold text-green-400">{getStatusCount('completed')}</p>
             </div>
-            <div className="bg-purple-900/30 p-3 md:p-4 rounded-lg border border-purple-700 col-span-2 md:col-span-1">
+            <div className="bg-gray-800 p-3 md:p-4 rounded-lg border border-gray-700">
                 <div className="flex items-center justify-between">
                 <div>
-                    <p className="text-purple-400 text-xs md:text-sm">Live Updates</p>
+                    <p className="text-gray-400 text-xs md:text-sm">Live Updates</p>
                     <p className="text-xl md:text-3xl font-bold text-purple-400">
                     {isPolling ? 'ON' : 'OFF'}
                     </p>
@@ -284,7 +305,7 @@ export default function AdminDashboard() {
             </div>
             )}
 
-            {/* Filters and Search */}
+            {/* Filters and Search - ADD 'ASSIGNED' FILTER */}
             <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
             <div className="flex flex-col gap-4">
                 <div className="flex-1">
@@ -297,7 +318,7 @@ export default function AdminDashboard() {
                 />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                {['all', 'pending', 'confirmed', 'completed', 'cancelled'].map(status => (
+                {['all', 'pending', 'confirmed', 'assigned', 'completed', 'cancelled'].map(status => (
                     <button
                     key={status}
                     onClick={() => setFilter(status)}
@@ -346,6 +367,7 @@ export default function AdminDashboard() {
                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Distance</th>
                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Fare</th>
                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Status</th>
+                        <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Rider</th>
                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Date</th>
                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Actions</th>
                         <th className="px-3 py-2 md:px-4 md:py-3 text-left text-xs md:text-sm font-semibold whitespace-nowrap">Chat</th>
@@ -360,6 +382,7 @@ export default function AdminDashboard() {
                         isSelectAll={isSelectAll}
                         onViewDetails={viewBookingDetails}
                         onStatusUpdate={handleStatusUpdate}
+                        onAssignRider={openAssignRiderModal} // ADD THIS PROP
                         getStatusColor={getStatusColor}
                         formatUserDetails={formatUserDetails}
                     />
