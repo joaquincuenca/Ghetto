@@ -683,7 +683,7 @@ export class BookingService {
     }
 
     // ================== RIDER LOCATION METHODS ==================
-        static async getRiderLocation(bookingNumber) {
+    static async getRiderLocation(bookingNumber) {
         try {
             const { data: booking, error: bookingError } = await supabase
                 .from('bookings')
@@ -697,7 +697,8 @@ export class BookingService {
                 throw new Error('No rider assigned to this booking');
             }
 
-            const activeStatuses = ['confirmed', 'assigned', 'on_the_way', 'picked_up', 'in_transit'];
+            // ADD 'in_progress' to this list!
+            const activeStatuses = ['confirmed', 'assigned', 'in_progress', 'on_the_way', 'picked_up', 'in_transit'];
             if (!activeStatuses.includes(booking.status)) {
                 throw new Error('Booking is not in active tracking state');
             }

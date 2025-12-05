@@ -166,14 +166,20 @@ export default function RiderBookingDetailsModal({
 
     useEffect(() => {
         if (booking && booking.user_details) {
-            setUserDetails({
+            const newUserDetails = {
                 name: booking.user_details.fullName || booking.user_details.name || 'Customer',
                 contact: booking.user_details.contactNumber || booking.user_details.phone || 'Not provided'
+            };
+            
+            setUserDetails(prev => {
+                if (prev?.name !== newUserDetails.name || prev?.contact !== newUserDetails.contact) {
+                    return newUserDetails;
+                }
+                return prev;
             });
         }
-    }, [booking]);
+    }, [booking?.booking_number]);
 
-    // Check location permission on mount
     useEffect(() => {
         if (navigator.permissions) {
             navigator.permissions.query({ name: 'geolocation' }).then((result) => {
