@@ -681,4 +681,80 @@ export class BookingService {
             throw error;
         }
     }
+
+    // ================== RIDER LOCATION METHODS ==================
+        static async getRiderLocation(bookingNumber) {
+        try {
+            const { data: booking, error: bookingError } = await supabase
+                .from('bookings')
+                .select('assigned_rider_id, status')
+                .eq('booking_number', bookingNumber)
+                .single();
+
+            if (bookingError) throw bookingError;
+
+            if (!booking || !booking.assigned_rider_id) {
+                throw new Error('No rider assigned to this booking');
+            }
+
+            const activeStatuses = ['confirmed', 'assigned', 'on_the_way', 'picked_up', 'in_transit'];
+            if (!activeStatuses.includes(booking.status)) {
+                throw new Error('Booking is not in active tracking state');
+            }
+
+            const { data: location, error: locationError } = await supabase
+                .from('rider_locations')
+                .select('*')
+                .eq('rider_id', booking.assigned_rider_id)
+                .order('timestamp', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (locationError) throw locationError;
+
+            return {
+                success: true,
+                data: {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    timestamp: location.timestamp,
+                    heading: location.heading || null,
+                    speed: location.speed || null
+                }
+            };
+        } catch (error) {
+            console.error('Error getting rider location:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    static async updateRiderLocation(riderId, locationData) {
+        try {
+            const { latitude, longitude, accuracy, heading, speed } = locationData;
+
+            const { data, error } = await supabase
+                .from('rider_locations')
+                .insert([{
+                    rider_id: riderId,
+                    latitude,
+                    longitude,
+                    accuracy: accuracy || null,
+                    heading: heading || null,
+                    speed: speed || null,
+                    timestamp: new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            return { success: true, data };
+        } catch (error) {
+            console.error('Error updating rider location:', error);
+            return { success: false, error: error.message };
+        }
+    }
 }

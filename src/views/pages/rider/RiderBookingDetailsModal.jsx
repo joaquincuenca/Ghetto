@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { FaUser, FaPhone, FaMapMarkerAlt, FaFlagCheckered, FaMotorcycle, FaCheckCircle, FaTimesCircle, FaDollarSign, FaRoute, FaCalendar, FaTimes, FaExclamationCircle, FaInfoCircle } from 'react-icons/fa';
+import { BookingService } from '../../../services/BookingService';
 
-// Status Dialog Component (built-in, no separate file)
+// Status Dialog Component
 function StatusDialog({
     isOpen,
     onClose,
-    type = 'success', // 'success', 'error', 'info'
+    type = 'success',
     title = '',
     message = '',
     actionText = '',
@@ -148,7 +149,8 @@ export default function RiderBookingDetailsModal({
     onAcceptBooking,
     onCompleteBooking,
     onCancelBooking,
-    loading = false
+    loading = false,
+    riderId // IMPORTANT: Pass the rider ID
 }) {
     const [userDetails, setUserDetails] = useState(null);
     const [showStatusDialog, setShowStatusDialog] = useState(false);
@@ -158,6 +160,9 @@ export default function RiderBookingDetailsModal({
         message: '',
     });
     const [isProcessing, setIsProcessing] = useState(false);
+    const [locationPermission, setLocationPermission] = useState('prompt');
+    const [isTrackingLocation, setIsTrackingLocation] = useState(false);
+    const [watchId, setWatchId] = useState(null);
 
     useEffect(() => {
         if (booking && booking.user_details) {
@@ -167,6 +172,92 @@ export default function RiderBookingDetailsModal({
             });
         }
     }, [booking]);
+
+    // Check location permission on mount
+    useEffect(() => {
+        if (navigator.permissions) {
+            navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+                setLocationPermission(result.state);
+                result.addEventListener('change', () => {
+                    setLocationPermission(result.state);
+                });
+            });
+        }
+    }, []);
+
+    // Start location tracking
+    const startLocationTracking = () => {
+        if (!navigator.geolocation) {
+            showErrorDialog('Geolocation is not supported by your browser');
+            return;
+        }
+
+        if (!riderId) {
+            showErrorDialog('Rider ID is missing. Cannot track location.');
+            return;
+        }
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+        };
+
+        const updateLocation = async (position) => {
+            const { latitude, longitude, accuracy, heading, speed } = position.coords;
+
+            try {
+                await BookingService.updateRiderLocation(riderId, {
+                    latitude,
+                    longitude,
+                    accuracy,
+                    heading,
+                    speed
+                });
+                console.log('✅ Location updated:', { latitude, longitude });
+            } catch (error) {
+                console.error('❌ Failed to update location:', error);
+            }
+        };
+
+        const handleError = (error) => {
+            console.error('Geolocation error:', error);
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    showErrorDialog('Location permission denied. Please enable location access in your browser settings.');
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    showErrorDialog('Location information unavailable.');
+                    break;
+                case error.TIMEOUT:
+                    console.log('Location request timeout. Retrying...');
+                    break;
+            }
+        };
+
+        // Start watching position
+        const id = navigator.geolocation.watchPosition(updateLocation, handleError, options);
+        setWatchId(id);
+        setIsTrackingLocation(true);
+        console.log('📍 Location tracking started');
+    };
+
+    // Stop location tracking
+    const stopLocationTracking = () => {
+        if (watchId !== null) {
+            navigator.geolocation.clearWatch(watchId);
+            setWatchId(null);
+            setIsTrackingLocation(false);
+            console.log('🛑 Location tracking stopped');
+        }
+    };
+
+    // Clean up on unmount
+    useEffect(() => {
+        return () => {
+            stopLocationTracking();
+        };
+    }, [watchId]);
 
     const showSuccessDialog = (message, callback = null) => {
         setStatusDialogConfig({
@@ -203,11 +294,21 @@ export default function RiderBookingDetailsModal({
         }
         
         if (loading || isProcessing) return;
+
+        // Check location permission before accepting
+        if (locationPermission === 'denied') {
+            showErrorDialog('Please enable location access in your browser settings to accept bookings. The customer needs to track your location.');
+            return;
+        }
         
         setIsProcessing(true);
         try {
             await onAcceptBooking(booking.booking_number);
-            showSuccessDialog('Booking accepted successfully! You can now start the ride.', () => {
+            
+            // Start location tracking after accepting
+            startLocationTracking();
+            
+            showSuccessDialog('Booking accepted successfully! Location tracking is now active.', () => {
                 onClose();
             });
         } catch (error) {
@@ -228,7 +329,11 @@ export default function RiderBookingDetailsModal({
         setIsProcessing(true);
         try {
             await onCompleteBooking(booking.booking_number);
-            showSuccessDialog('Ride completed successfully! Payment will be processed.', () => {
+            
+            // Stop location tracking after completing
+            stopLocationTracking();
+            
+            showSuccessDialog('Ride completed successfully! Location tracking stopped.', () => {
                 onClose();
             });
         } catch (error) {
@@ -254,6 +359,10 @@ export default function RiderBookingDetailsModal({
             onAction: async () => {
                 try {
                     await onCancelBooking(booking.booking_number);
+                    
+                    // Stop location tracking after cancelling
+                    stopLocationTracking();
+                    
                     showSuccessDialog('Ride cancelled successfully.', () => {
                         onClose();
                     });
@@ -278,6 +387,12 @@ export default function RiderBookingDetailsModal({
                                 Booking Details
                             </h3>
                             <p className="font-mono text-blue-400 text-sm mt-1">{booking.booking_number}</p>
+                            {isTrackingLocation && (
+                                <div className="mt-2 flex items-center gap-2 text-sm">
+                                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                    <span className="text-green-400 font-semibold">Location Tracking Active</span>
+                                </div>
+                            )}
                         </div>
                         <button
                             onClick={onClose}
@@ -299,6 +414,21 @@ export default function RiderBookingDetailsModal({
                             {booking.status.toUpperCase()}
                         </span>
                     </div>
+
+                    {/* Location Permission Warning */}
+                    {locationPermission === 'denied' && (
+                        <div className="mb-6 p-4 bg-red-900/20 border border-red-700 rounded-lg">
+                            <div className="flex items-start gap-3">
+                                <FaExclamationCircle className="text-red-400 text-xl mt-0.5" />
+                                <div>
+                                    <p className="font-semibold text-red-300 mb-1">Location Access Required</p>
+                                    <p className="text-sm text-red-200">
+                                        You must enable location access to accept bookings. The customer needs to track your location in real-time.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="bg-gray-900/50 rounded-xl p-5 mb-6">
                         <h4 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -331,7 +461,7 @@ export default function RiderBookingDetailsModal({
                                 </div>
                                 <div>
                                     <h4 className="font-semibold">Pickup Location</h4>
-                                    <p className="text-sm text-gray-400">Where to pick up the customer</p>
+                                    <p className="text-sm text-gray-400">Where to pick up</p>
                                 </div>
                             </div>
                             <p className="text-lg font-medium">{booking.pickup_location}</p>
@@ -344,7 +474,7 @@ export default function RiderBookingDetailsModal({
                                 </div>
                                 <div>
                                     <h4 className="font-semibold">Drop-off Location</h4>
-                                    <p className="text-sm text-gray-400">Where to drop off the customer</p>
+                                    <p className="text-sm text-gray-400">Where to drop off</p>
                                 </div>
                             </div>
                             <p className="text-lg font-medium">{booking.dropoff_location}</p>
@@ -396,7 +526,7 @@ export default function RiderBookingDetailsModal({
                         {(booking.status === 'assigned' || booking.status === 'confirmed') && (
                             <button
                                 onClick={handleAccept}
-                                disabled={loading || isProcessing}
+                                disabled={loading || isProcessing || locationPermission === 'denied'}
                                 className="w-full bg-green-600 hover:bg-green-700 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isProcessing ? (
@@ -453,9 +583,9 @@ export default function RiderBookingDetailsModal({
                         </button>
                     </div>
 
-                    <div className="mt-6 p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg">
-                        <p className="text-sm text-yellow-300">
-                            <span className="font-semibold">Note:</span> When you accept a booking, the customer will be notified and can track your location in real-time.
+                    <div className="mt-6 p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
+                        <p className="text-sm text-blue-300">
+                            <span className="font-semibold">📍 Location Tracking:</span> When you accept a booking, your location will be shared with the customer in real-time. Make sure location services are enabled on your device.
                         </p>
                     </div>
                 </div>
