@@ -317,6 +317,7 @@ export default function RiderDashboard() {
             onCompleteBooking={handleCompleteBooking}
             onCancelBooking={handleCancelBooking}
             loading={isRefreshing}
+            riderId={rider?.id}
         />
         </div>
     );
