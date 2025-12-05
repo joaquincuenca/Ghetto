@@ -68,14 +68,23 @@ export function useBookingTracking() {
             return;
         }
 
-        // ADD: Check if booking exists
+        // Check if booking exists
         if (!booking) {
             console.log('Booking not loaded yet');
             return;
         }
 
-        // Check if booking status allows rider tracking
-        const activeStatuses = ['confirmed', 'assigned', 'on_the_way', 'picked_up', 'in_transit'];
+        // Stop fetching if booking is finished - clear interval too
+        if (booking.status === 'completed' || booking.status === 'cancelled') {
+            if (riderLocationPollingRef.current) {
+                clearInterval(riderLocationPollingRef.current);
+                riderLocationPollingRef.current = null;
+            }
+            setRiderLocation(null);
+            return;
+        }
+
+        const activeStatuses = ['confirmed', 'assigned', 'in_progress', 'on_the_way', 'picked_up', 'in_transit'];
         if (!activeStatuses.includes(booking.status)) {
             console.log('Booking not in active tracking status:', booking.status);
             return;
@@ -92,28 +101,29 @@ export function useBookingTracking() {
             const result = await BookingService.getRiderLocation(bookingNumber);
             
             if (result.success && result.data) {
-            const newLocation = {
-                lat: result.data.latitude,
-                lng: result.data.longitude,
-                heading: result.data.heading,
-                speed: result.data.speed,
-                timestamp: result.data.timestamp
-            };
-            
-            // Only update if location actually changed
-            if (!riderLocation || 
-                newLocation.lat !== riderLocation.lat || 
-                newLocation.lng !== riderLocation.lng) {
-                setRiderLocation(newLocation);
-            }
+                const newLocation = {
+                    lat: result.data.latitude,
+                    lng: result.data.longitude,
+                    heading: result.data.heading,
+                    speed: result.data.speed,
+                    timestamp: result.data.timestamp
+                };
+                
+                // Only update if location actually changed
+                if (!riderLocation || 
+                    newLocation.lat !== riderLocation.lat || 
+                    newLocation.lng !== riderLocation.lng) {
+                    setRiderLocation(newLocation);
+                }
             }
         } catch (error) {
-            // Don't log errors for "no rider assigned" - it's expected
-            if (!error.message?.includes('No rider assigned')) {
-            console.log('Error fetching rider location:', error.message);
+            // Suppress expected errors
+            if (!error.message?.includes('No rider assigned') && 
+                !error.message?.includes('not in active tracking state')) {
+                console.log('Error fetching rider location:', error.message);
             }
         }
-        }, [bookingNumber, booking, riderLocation]); // ADD 'booking' to dependencies
+    }, [bookingNumber, booking, riderLocation]);
 
     // FIXED: Proper rider location polling with dependencies
     useEffect(() => {
@@ -129,7 +139,7 @@ export function useBookingTracking() {
         }
 
         // Only start polling if booking is in active status
-        if (!['confirmed', 'assigned', 'on_the_way', 'picked_up', 'in_transit'].includes(booking.status)) {
+        if (!['confirmed', 'assigned', 'in_progress', 'on_the_way', 'picked_up', 'in_transit'].includes(booking.status)) {
             console.log('Not polling rider location - booking status:', booking.status);
             setRiderLocation(null);
             return;
@@ -152,11 +162,13 @@ export function useBookingTracking() {
 
         return () => {
             if (riderLocationPollingRef.current) {
-            clearInterval(riderLocationPollingRef.current);
-            riderLocationPollingRef.current = null;
+                clearInterval(riderLocationPollingRef.current);
+                riderLocationPollingRef.current = null;
             }
         };
-        }, [booking, bookingNumber]); // REMOVED fetchRiderLocation and simplified dependencies
+
+        
+        }, [booking, bookingNumber, fetchRiderLocation]); // REMOVED fetchRiderLocation and simplified dependencies
 
     // Get user's current location - FIXED: Only run once
     useEffect(() => {
